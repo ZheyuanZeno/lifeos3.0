@@ -1,0 +1,6 @@
+interface:
+  display_name: "LifeOS 生活记录"
+  short_description: "把日记、小票、运动和计划保存到本机白板，支持跨对话记录与查询"
+  default_prompt: "使用 $lifeos，把下面的生活记录整理保存到我的白板。"
+policy:
+  allow_implicit_invocation: true

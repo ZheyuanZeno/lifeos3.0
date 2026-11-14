@@ -1,0 +1,25 @@
+{
+  "id": "/pocket/",
+  "name": "LifeOS Pocket",
+  "short_name": "LifeOS Pocket",
+  "lang": "zh-CN",
+  "start_url": "/pocket/",
+  "scope": "/pocket/",
+  "display": "standalone",
+  "background_color": "#f7f8f5",
+  "theme_color": "#f7f8f5",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
