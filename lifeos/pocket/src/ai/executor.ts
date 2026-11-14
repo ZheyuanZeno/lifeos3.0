@@ -52,6 +52,6 @@ export async function execute(p:Preview,db:PocketDatabase){
    await saveRecord({...row,title:d.title??row.title,date:d.date??row.date,body:d.body??row.body,source_id:d.source_id??row.source_id,properties},db)
    targets.push(r.id)
   }
-  const result={hash:p.hash,status:'applied',at:new Date().toISOString(),targets};await db.local.put({key:'ai-result:'+p.command.command_id,value:result});return result
- })}catch(e){await db.local.put({key:'ai-error:'+p.command.command_id,value:{hash:p.hash,status:'failed',at:new Date().toISOString(),error:String(e)}});throw e}
+  const result={command_id:p.command.command_id,hash:p.hash,status:'applied',at:new Date().toISOString(),targets,error:''};await db.local.put({key:'ai-result:'+p.command.command_id,value:result});return result
+ })}catch(e){await db.local.put({key:'ai-error:'+p.command.command_id,value:{command_id:p.command.command_id,hash:p.hash,status:'failed',at:new Date().toISOString(),targets:p.rows.map(r=>r.id),error:String(e)}});throw e}
 }
