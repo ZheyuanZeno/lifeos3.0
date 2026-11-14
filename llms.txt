@@ -1,0 +1,13 @@
+# LifeOS 3.0
+
+> Offline-first personal life management: Python/SQLite desktop whiteboard, TypeScript/Dexie Pocket PWA, manual Google Drive synchronization, and Cloudflare Web Push reminders. Product version 3.0.0; latest documentation is on main.
+
+## Documentation
+- [README](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/README.md): project overview, system diagram, implementation summary and commands.
+- [Architecture](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/ARCHITECTURE.md): storage, transactions, causal merge, timers, sync and notification boundaries.
+- [Release](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/RELEASE-3.0.md): manual sync semantics, verification and current limitations.
+- [ChatGPT access](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/CHATGPT-ACCESS.md): public links, optional GitHub connection and example questions.
+- [Notifications](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/NOTIFICATIONS.md): deployment, device authorization and reminder delivery.
+
+## Important boundaries
+The repository contains source code, not personal LifeOS records or credentials. Google Drive sync is manual; notification metadata updates are separate. Reading this repository does not grant access to user data or a write integration. This file is a documentation index, not an automatic permission or discovery mechanism.

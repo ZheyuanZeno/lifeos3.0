@@ -15,6 +15,73 @@
 - JSON 备份导出、校验与幂等合并恢复，保留旧数据格式。
 - iPhone 主屏幕应用及兼容 Android 浏览器可开启 Web Push 通知，按计划详细时间提醒。
 
+## 整体架构
+
+LifeOS 3.0 使用“本地先保存、按需交换数据、后台独立提醒”的结构。手机、电脑白板和通知服务职责分开，实际生活记录没有保存在 GitHub 仓库里。
+
+~~~mermaid
+flowchart LR
+    User[用户操作] --> Pocket[Pocket PWA / TypeScript]
+    Pocket --> Local[(IndexedDB / Dexie)]
+    Local -->|用户点击立即同步| Drive[(Google Drive 应用数据区)]
+    Drive -->|用户点击立即同步| Other[另一设备的 Pocket]
+    Pocket <-->|仅电脑同源本机交换| Python[Python HTTP 服务]
+    Python <--> SQLite[(SQLite 与附件目录)]
+    Pocket -->|独立提交计划提醒投影| Pages[Pages 同源通知接口]
+    Pages --> Hub[Worker / Durable Object]
+    Hub -->|alarm 到时触发| Push[浏览器推送服务]
+    Push --> SW[Service Worker 系统通知]
+~~~
+
+GitHub 只托管源码。Cloudflare Pages 托管 Pocket 静态资源及通知转发；Worker 保存提醒元数据。Google Cloud 控制台里的 Drive API/OAuth 配置不等于建立了 Firestore 业务数据库。
+
+|层|实现|主要职责|
+|---|---|---|
+|手机界面|Vanilla TypeScript、CSS、esbuild|日程、随手记、设置及响应式编辑弹窗|
+|手机本地数据|Dexie / IndexedDB|离线记录、操作日志、录音及本机设置|
+|离线启动|Manifest、Service Worker、Cache API|安装、预缓存、版本更新和断网重开|
+|电脑原版|Python 标准库、SQLite|原有白板、导入导出、附件及本机接口|
+|跨设备交换|Google GIS、Drive API|账号授权、不可变操作批次、手动增量同步|
+|计划提醒|Cloudflare Worker、SQLite Durable Object、Web Push|设备订阅、后台定时、加密推送|
+
+### 核心实现方法
+
+**事务与操作日志。** Pocket 的业务写入和对应操作日志在同一 Dexie 事务中提交。每条操作包含稳定 ID、设备序号、逻辑时钟、因果上下文和字段补丁，断网时仍能保存。后续同步使用这些操作合并，而不是把整份手机数据库覆盖到另一台设备。
+
+**冲突合并。** 合并按字段识别因果关系，对并发修改使用确定顺序。并发删除/归档优先，明确观察过删除后的恢复仍可生效；标题和正文的并发版本会保留。计时的开始、结束及暂停区间作为一致快照处理，结束优先于并发的旧暂停/继续操作，避免同步后复活已结束计时。
+
+**手动 Drive 同步。** 连接 Google 只授权。点击“立即同步”后，先拉取增量日志并合并，再同步录音、上传待确认批次；批次用 SHA-256 回读校验。云端确认与电脑本机交换的确认分别保存，重复传输不重复新增记录。空闲、保存、返回前台或联网不会启动新一轮 Drive 同步。
+
+**计时与计划。** 时长由 UTC 开始/结束时间计算，并扣除暂停区间，不靠每秒写数据库累计。结束时有效时长不超过 30 秒的段写入删除标记，不纳入历史和统计。计划是原有 task 记录，可以反复计时，只有打勾才算完成。分钟级计划时间同时保存 IANA 时区，处理跨午夜与夏令时边界。
+
+**通知独立运行。** 设备首次通过 Google 确认账号后，获取仅用于通知的一年期设备凭证。前端独立提交计划标题、时间和状态等必要投影；后台按账号隔离，用 Durable Object alarm 定时，经 Web Push 加密发送。系统通知不要求网页一直打开，修改提醒也不依赖点击 Drive 同步；离线修改要联网后才能更新后台。
+
+**录音与恢复。** 前台录音使用 MediaRecorder，文件和索引保存在本地，随后可手动同步至 Drive。Pocket JSON 备份包含业务数据和录音字节，导入按稳定 ID 合并；原电脑端另有完整 ZIP。备份导出不包含 Google token 或通知设备凭证。
+
+完整模型、请求流程和源码定位见 [架构与实现详解](docs/ARCHITECTURE.md)。
+
+### 源码导航
+
+~~~text
+lifeos/
+  app.py                  电脑 HTTP 服务、白板及 Pocket 本机接口
+  pocket_sync.py          SQLite 日志与因果合并适配
+  static/                 原电脑版界面；构建后还包含 Pocket 静态资源
+  pocket/src/
+    main.ts               Pocket 页面、交互与控制器接线
+    database.ts/model.ts  IndexedDB 定义和业务类型
+    repository.ts         事务写入、业务操作和备份恢复
+    merge.ts              普通字段的因果合并
+    shared-timer.ts       共享计时控制快照合并
+    time.ts/plans.ts      有效时长、自然日、时区和计划时间
+    sync/                 手动 Drive 同步与录音传输
+    notifications/        通知设备控制与提醒字段投影
+functions/api/notify/      Pages 同源通知转发
+workers/notify/           Worker、Durable Object alarm 和 Web Push
+scripts/                  构建、静态打包、通知集成验证
+tests/                   数据、Python、浏览器和通知回归
+~~~
+
 ## 本机启动
 
 要求 Python 3.10+、Node.js 22+。Python 服务仅使用标准库；Node 用于构建和测试。
@@ -81,7 +148,9 @@ package:pocket 生成 release/lifeos-pocket-web.zip 和 release/site，只包含
 ## 文档
 
 - [3.0 发布说明](docs/RELEASE-3.0.md)
-- [架构与边界](docs/ARCHITECTURE.md)
+- [架构与实现详解](docs/ARCHITECTURE.md)
+- [让聊天版 ChatGPT 阅读仓库](docs/CHATGPT-ACCESS.md)
+- [纯文本文档索引](llms.txt)
 - [Google Drive 配置](docs/GOOGLE-DRIVE-SETUP.md)
 - [手机安装](docs/PHONE-INSTALL.md)
 - [通知服务](docs/NOTIFICATIONS.md)
@@ -90,3 +159,21 @@ package:pocket 生成 release/lifeos-pocket-web.zip 和 release/site，只包含
 - [电脑白板使用说明](lifeos/README.md)
 
 源码不包含个人数据库、备份、录音、账号令牌或 VAPID 私钥。公开 Google client ID 用于当前站点，部署自己的站点时应配置自己的 Web OAuth 客户端及允许的 origins。3.0 保留 lifeos-pocket-v1 本地数据库名称、现有表结构与备份格式，版本升级不会重置记录。
+
+## 在聊天版 ChatGPT 中阅读
+
+仓库按所有者要求公开。可以向支持网页访问的聊天发送这个链接：
+https://github.com/ZheyuanZeno/lifeos3.0
+
+也可以直接提供纯文本入口：
+https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/README.md
+
+~~~text
+请阅读 ZheyuanZeno/lifeos3.0 的 main 分支 README.md 和 docs/ARCHITECTURE.md，
+基于实际源码解释整体架构、手动同步与通知流程，并附相关文件路径。
+如果当前聊天没有网页/GitHub 访问能力，请明确说明。
+~~~
+
+若使用 ChatGPT 的 GitHub 连接，可授权该仓库后按文件读取。普通聊天是否支持该连接取决于当前套餐和产品入口；公开链接也不保证每个聊天都能浏览或立即被搜索收录。具体入口与备用方法见 [ChatGPT 阅读指南](docs/CHATGPT-ACCESS.md)。
+
+读取公开源码不会读取你手机里的生活记录，也不会自动接通“聊天创建计划”；业务写入仍需要另行实现经过身份验证的接口。
