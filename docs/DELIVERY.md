@@ -6,7 +6,7 @@
 
 设置新增独立 drive.file 授权、私人双文档创建/绑定/复制链接/Inbox 轮换、手动领取、逐项审核、来源提示及选择性 Context 导出。Context 用 requiredRevisionId 原子替换并回读，默认不导出笔记正文、附件、媒体、凭证或操作日志。文档绑定及结果仅存 local，access token 仅内存。保留 drive.appdata 手动业务同步、多计时器、通知投影、原 SQLite 交换和 schemaVersion 1 备份，不新增云业务库或恢复后台流程。
 
-Google Docs API 安全域补充到 Python 和静态包 CSP。自动化使用模拟 Google API 和独立数据库，真实 Google / ChatGPT Plus 写入、Canvas 真实事项及手机推送联合验收尚未执行，步骤和可复制提示词见 AI-BRIDGE.md。最终检查与发布结果见本节后续记录。
+Google Docs API 安全域补充到 Python 和静态包 CSP。自动化使用模拟 Google API 和独立数据库，真实 Google / ChatGPT Plus 写入、Canvas 真实事项及手机推送联合验收尚未执行，步骤和可复制提示词见 AI-BRIDGE.md。已通过 strict 前后台类型检查、124 项 TypeScript 测试（18 项 AI 专项）、15 项 Python 测试、完整 Chromium/WebKit 78 项浏览器回归、最终 AI/计划日期 8 项复查及加入双文档绑定后的 4 项复查；两引擎静态离线、真实 workerd 通知定时加密检查通过。生产 Pages 0dd1f3a1，缓存 lifeos-pocket-2097220f4aa120a2，公开 main 功能提交 1f3922b / 审计元数据修复 e858d3c（原目录 171eff7 / 8ea650c）。10 个入口资源 200，JS/SW 哈希一致；两引擎线上通过 320px 审核、离线 JSON 导入、重复跳过、冷启动和两个计时器保留，未访问真实 Google/Canvas 数据。电脑更新 CSP 前有 SQLite 一致性备份，更新后六张原表完全相同、完整性检查通过。原通知 Worker 与 v3.0.0 标签保留。
 
 
 ## 2026-11-14：取消后台流程，统一多项目计时

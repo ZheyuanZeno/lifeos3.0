@@ -109,6 +109,7 @@ llms.txt
 docs/ARCHITECTURE.md
 docs/CHATGPT-ACCESS.md
 docs/DELIVERY.md
+docs/CLOUDFLARE.md
 docs/AI-BRIDGE.md
 docs/lifeos-ai-v1.schema.json
 lifeos/app.py

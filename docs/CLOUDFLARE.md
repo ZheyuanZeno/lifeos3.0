@@ -35,14 +35,14 @@ Cloudflare Pages 将 /pocket/index.html 重定向到 /pocket/；Service Worker �
 
 ## 当前发布记录
 
-部署 ID：b5799798
-发布时源码提交：bbc5a3d（公开 3.0 仓库对应 0ba367d，多项目同时计时）
+部署 ID：0dd1f3a1
+发布时源码提交：8ea650c（公开 3.0 仓库对应 e858d3c，AI Docs Bridge v1）
 固定网址：https://lifeos-pocket.pages.dev/pocket/
 
 通知后台：https://lifeos-pocket-notify.lifeos-pocket.workers.dev
 后台当前版本：8878139d-5c15-4314-91b7-2162c7597f54（沿用既有 VAPID 和设备签名密钥）。Workers 子域名为 lifeos-pocket.workers.dev；应用通过 Pages 同源 /api/notify/* 调用，用户无需访问该后台域名。后台绑定 SQLite Durable Object REMINDERS / ReminderHub，保留免费计划，未启用付费升级。
 
-Pages 配置 NOTIFY_BACKEND 指向后台；后台三项 VAPID/设备签名密钥从 E:/Codex/notify-config/worker-secrets.json 上传，私钥从未进入仓库、前端或发布包。应用缓存版本 lifeos-pocket-78aaa4096574b9d2。桌面 Python 转发显式使用 LifeOSDesktop/1.0 请求标识，修复 Cloudflare 对 Python 默认 UA 返回 1010 的兼容问题。
+Pages 配置 NOTIFY_BACKEND 指向后台；后台三项 VAPID/设备签名密钥从 E:/Codex/notify-config/worker-secrets.json 上传，私钥从未进入仓库、前端或发布包。应用缓存版本 lifeos-pocket-2097220f4aa120a2。桌面 Python 转发显式使用 LifeOSDesktop/1.0 请求标识，修复 Cloudflare 对 Python 默认 UA 返回 1010 的兼容问题。
 
 线上首次安装复核修复了首次 SW 接管时的多余刷新，以及未授权即查询原生推送订阅导致部分 WebKit 运行时卡住的问题。现在仅在 Notification.permission 为 granted 时读取订阅；用户点击开启仍直接调用 subscribe 保留手势。原生 WebKit 最小复现曾在默认权限下等待超过 15 秒，修复后原生首次安装、通知未授权时离线记录和两引擎生产 HTTPS 离线冷启动均通过。
 
@@ -65,3 +65,7 @@ Google Drive 现在只有点击“立即同步”才执行，连接仅授权；�
 ## 取消后台流程与多项目计时
 
 按用户要求取消后台流程界面和阶段提醒，固定项目与计划现在可同时运行，各自暂停、备注、结束及完成。旧流程显示为普通计划，历史保留。先发布 Worker 取消阶段调度，再发布 Pages；原计划通知及设备凭证保持，旧提醒投影字节保留以兼容操作 ID 重放。线上 10 个资源 200、JS/SW 哈希与受测包一致，Chromium/WebKit 验证三个计时、暂停独立性、320px、离线冷启动及完成单个计划不影响其他任务。电脑版直接读取同一受测静态包，无需重启；SQLite 一致性备份和六张表摘要一致性检查通过。完整规则见 MULTI-TIMER.md。
+
+## AI Docs Bridge 发布
+
+新增设置页私人 Docs Inbox/Context、独立 drive.file 授权、JSON 离线导入与人工审核、版本前置条件及稳定来源 ID 去重，保持手动业务同步、多计时器和通知。Python 与静态包 CSP 仅补充 docs.googleapis.com；通知后台无需变更。生产 10 个资源 200、JS/SW 哈希一致；Chromium/WebKit 线上使用隔离浏览器验证离线 JSON 审核/写入/重复跳过/冷启动和两个计时器保留，未读取真实 Google 或 Canvas 数据。真实账号需启用 Docs API，并完成 AI-BRIDGE.md 中手工验收。电脑更新前备份、更新后六张 SQLite 表摘要完全相同。
