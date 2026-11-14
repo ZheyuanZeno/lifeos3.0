@@ -20,6 +20,7 @@ import uuid
 import webbrowser
 import zipfile
 import pocket_sync
+import background_flow
 import notification_proxy
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -104,6 +105,10 @@ def validate(record):
     for key, value in r["properties"].items():
         if not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", key) or not isinstance(value, str) or len(value) > 10000:
             raise ValueError("自定义属性值应为文字")
+    if 'background_flow' in r['properties']:
+        if r['type'] != 'task':
+            raise ValueError('后台流程必须是计划')
+        background_flow.parse(r['properties']['background_flow'])
     if r['properties'].get('plan_deadline'):
         deadline = r['properties']['plan_deadline']
         if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', deadline):

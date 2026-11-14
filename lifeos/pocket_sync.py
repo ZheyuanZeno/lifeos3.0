@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import re
 import uuid
+import background_flow
 
 ENTITIES = ('modules', 'records', 'routines', 'completions', 'sessions')
 ID = re.compile(r'^[a-zA-Z0-9_-]{1,100}$')
@@ -100,6 +101,12 @@ def materialize(ops):
             heads = [o for o in heads if o['patch'][key] is True]
         winner = max(heads, key=lambda o: (o['clock'], o['deviceId'], o['id']))
         row[key] = winner['patch'][key]
+    if ops[0]['entity'] == 'records':
+        snapshots = [o for o in ops if isinstance(o['patch'].get('properties'), dict) and isinstance(o['patch']['properties'].get('background_flow'), str)]
+        heads = [a for a in snapshots if not any(b['id'] != a['id'] and b['context'].get(a['deviceId'], 0) >= a['sequence'] for b in snapshots)]
+        if heads:
+            winner = max(heads, key=lambda o: (background_flow.rank(background_flow.parse(o['patch']['properties']['background_flow'])), o['clock'], o['deviceId'], o['id']))
+            row['properties'] = {**row.get('properties', {}), 'background_flow': winner['patch']['properties']['background_flow']}
     if ops[0]['entity'] == 'sessions':
         keys = ('startedAt', 'endedAt', 'pauses')
         actions = [op for op in ops if any(k in op['patch'] for k in keys)]

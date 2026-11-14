@@ -77,6 +77,12 @@ time.ts 根据起止时间求实际时长并扣除暂停，按会话保存的时
 
 plans.ts 将可选 DDL 存为 plan_deadline 日期，将分钟级详细时间存为 planned_start 的 UTC 瞬间及 time_zone 的 IANA 时区。修改其他字段时保留原时间，夏令时不存在的分钟拒绝保存；已有重复分钟的瞬间不会被无关编辑悄悄改掉。
 
+### 当前活动与后台流程
+
+后台流程复用原 task 及 `properties.background_flow` JSON 属性；人工处理继续使用 sessions。`handleFlow` 记录回去处理的实际时刻并开始人工段；`advanceFlow` 在同一 Dexie 事务中结束人工段、保存阶段起止预期及操作日志。后台等待期间可以计时其他活动，最后需明确完成流程。预计结束仅用于显示和通知，不代表机器实际停机。
+
+流程总历时与人工投入分开派生，不重复增加当日人工时间。并发流程属性快照优先保留进度更多的阶段；已完成优先，明确因果重开仍有效。TS 与 Python 均校验并使用此规则，既有 properties、Dexie 和备份协议保持兼容。通知投影增加必要阶段元数据，每阶段单独去重；正文、备注、人工会话不进入通知后台。完整说明见 [BACKGROUND-FLOWS.md](BACKGROUND-FLOWS.md)。
+
 ### 离线资源与录音
 
 构建脚本用 esbuild 打包 TypeScript/CSS，复制 manifest 和图标，并生成带内容指纹的 Service Worker。首次联网预缓存启动资源；后续离线导航读取缓存的规范 /pocket/ 页面。新版本等待用户确认后激活，业务数据保留在 IndexedDB。

@@ -92,6 +92,28 @@ class DesktopAdapterTests(unittest.TestCase):
         restore = {**base,'id':'d','deviceId':'d','clock':100,'context':{'a':1,'b':1,'c':1},'patch':{'deleted':False}}
         self.assertFalse(pocket_sync.materialize([base,deleted,stale,restore])['deleted'])
 
+    def test_background_flow_merge_preserves_physical_progress_and_desktop_edits(self):
+        doc = self.create()
+        flow = {'version': 1, 'id': 'flow1', 'startedAt': '2026-11-14T10:00:00Z', 'steps': [{'id': 'wash', 'title': '洗涤', 'minutes': 60, 'startedAt': '2026-11-14T10:01:00Z', 'expectedEndAt': '2026-11-14T11:01:00Z'}]}
+        base = {'id': 'flow_base', 'deviceId': 'phone', 'sequence': 1, 'clock': 20, 'context': {}, 'entity': 'records', 'recordId': 'task1', 'patch': {'properties': {'background_flow': json.dumps(flow)}}, 'timestamp': '2026-11-14T10:01:00Z', 'uploaded': 0}
+        advanced = copy.deepcopy(flow)
+        advanced['steps'][0]['handledAt'] = '2026-11-14T11:02:00Z'
+        advance = {**base, 'id': 'flow_advance', 'sequence': 2, 'clock': 21, 'context': {'phone': 1}, 'patch': {'properties': {'background_flow': json.dumps(advanced)}}}
+        stale = {**base, 'id': 'flow_stale', 'deviceId': 'other', 'clock': 99, 'context': {'phone': 1}, 'patch': {'properties': {'background_flow': json.dumps(flow), 'custom': '保留'}}}
+        for ops in ([base, advance, stale], [stale, advance, base]):
+            props = pocket_sync.materialize(ops)['properties']
+            self.assertEqual(json.loads(props['background_flow']), advanced)
+            self.assertEqual(props['custom'], '保留')
+        self.receive([base, advance, stale]);self.receive([base, advance, stale])
+        record = app.load()['records'][0]
+        self.assertEqual(json.loads(record['properties']['background_flow']), advanced)
+        record['title'] = '桌面改名'
+        state = app.load();state['records'] = [record];app.save(state)
+        self.assertEqual(json.loads(app.load()['records'][0]['properties']['background_flow']), advanced)
+        invalid = copy.deepcopy(record);invalid['properties']['background_flow'] = json.dumps({**flow, 'steps': []})
+        with self.assertRaises(ValueError):
+            app.validate(invalid)
+
     def test_session_extension_is_retained_without_replacing_legacy_data(self):
         self.create()
         stamp='2026-11-13T12:00:00Z'

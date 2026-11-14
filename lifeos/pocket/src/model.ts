@@ -1,3 +1,4 @@
+import {parseFlow} from './background-flow'
 export type Entity = 'modules' | 'records' | 'routines' | 'completions' | 'sessions'
 export const entities: Entity[] = ['modules', 'records', 'routines', 'completions', 'sessions']
 export interface Module { id: string; name: string; kind: 'journal'|'health'|'shopping'|'plans'|'custom'; view: 'list'|'table'; fields: {id:string; name:string; type:string}[]; archived: boolean; layout: {x:number;y:number;width:number;height:number}|null }
@@ -35,6 +36,7 @@ export function validateRow(entity:Entity, value:unknown):void {
     if((r.attachments as unknown[]).some(a=>!a||typeof a!=='object'||!text((a as {name:unknown}).name,300)||!/^[a-f0-9]{32}\.(?:png|jpg|jpeg|webp|gif|pdf|txt|m4a|mp4|webm|ogg|wav)$/.test(String((a as {file:unknown}).file))))throw Error('附件索引无效')
     for(const k of ['planned_start','planned_end'])if((r.properties as Record<string,string>)[k]&&!instant((r.properties as Record<string,string>)[k]))throw Error('计划时间无效')
     const props=r.properties as Record<string,string>
+    if(props.background_flow!==undefined){if(r.type!=='task')throw Error('后台流程必须是计划');parseFlow(props.background_flow)}
     if(props.plan_deadline&&!validDate(props.plan_deadline))throw Error('DDL 日期无效')
     if(props.planned_start&&props.planned_end&&Date.parse(props.planned_end)<=Date.parse(props.planned_start))throw Error('结束时间必须晚于开始时间')
   } else if(entity==='routines') {

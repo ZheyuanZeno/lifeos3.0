@@ -8,6 +8,7 @@
 - [Release](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/RELEASE-3.0.md): manual sync semantics, verification and current limitations.
 - [ChatGPT access](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/CHATGPT-ACCESS.md): public links, optional GitHub connection and example questions.
 - [Notifications](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/NOTIFICATIONS.md): deployment, device authorization and reminder delivery.
+- [Background workflows](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/BACKGROUND-FLOWS.md): parallel machine stages, separate human effort, phase notifications and compatible storage.
 
 ## Important boundaries
 The repository contains source code, not personal LifeOS records or credentials. Google Drive sync is manual; notification metadata updates are separate. Reading this repository does not grant access to user data or a write integration. This file is a documentation index, not an automatic permission or discovery mechanism.
