@@ -5,7 +5,7 @@ import { dailyPresets } from './defaults'
 import { serializeMedia,deserializeMedia,importMedia,type MediaAsset } from './media'
 import { MIN_SESSION_MS,isSessionPaused,sessionElapsed } from './time'
 import {openSessions} from './shared-timer'
-import {planSchedule,type PlanScheduleInput} from './plans'
+import {planSchedule,plannedTime,planTimeZone,type PlanScheduleInput} from './plans'
 
 async function identity(database:PocketDatabase):Promise<Identity>{const saved=await database.local.get('identity');if(saved)return saved.value as Identity;const value={id:uuid(),sequence:0,clock:0};await database.local.put({key:'identity',value});return value}
 // Caller must hold the same read-write transaction as the business write.
@@ -38,13 +38,17 @@ export async function reorderRoutines(ids:string[],database=defaultDB){return tr
 export async function setCompletion(routineId:string,date:string,completed:boolean,database=defaultDB){return transaction(database,async()=>{if(!await database.routines.get(routineId))throw Error('找不到例行事项');const id=routineId+'_'+date,old=await database.completions.get(id),now=iso();return putRow('completions',{id,routineId,date,completed,created_at:old?.created_at??now,updated_at:now},database)})}
 export async function saveRecord(record:LifeRecord,database=defaultDB,expected?:string){return transaction(database,async()=>{const old=await database.records.get(record.id);if(expected&&old?.updated_at!==expected)throw Error('记录已在其他窗口更新，请重新打开');if(!await database.modules.get(record.module_id))throw Error('所属模块不存在');return putRow('records',{...record,created_at:old?.created_at??record.created_at,updated_at:iso()},database)})}
 export async function saveAudioRecord(record:LifeRecord,asset:MediaAsset,database=defaultDB){return transaction(database,async()=>{await importMedia(asset,database);return saveRecord({...record,attachments:[...record.attachments,{file:asset.file,name:'语音记录.'+asset.file.split('.').at(-1)}]},database)})}
-export async function savePlan(input:Pick<LifeRecord,'title'|'date'|'body'> & {id?:string} & PlanScheduleInput,database=defaultDB,expected?:string){return transaction(database,async()=>{
+export async function savePlan(input:Pick<LifeRecord,'title'|'date'|'body'> & {id?:string;createId?:string} & PlanScheduleInput,database=defaultDB,expected?:string){return transaction(database,async()=>{
   const old=input.id?await database.records.get(input.id):undefined
   if(input.id&&(!old||old.deleted||old.type!=='task'))throw Error('找不到计划')
   const module=old?undefined:await database.modules.where('kind').equals('plans').filter(m=>!m.archived).first()
   if(!old&&!module)throw Error('计划模块暂不可用，请先与白板交换')
-  const record=old??recordDraft(module!.id,input.date)
-  return saveRecord({...record,title:input.title.trim(),date:input.date,body:input.body,properties:planSchedule(record.properties,input.date,input)},database,expected)
+  if(input.createId&&await database.records.get(input.createId))throw Error('计划编号已存在')
+  const record=old??{...recordDraft(module!.id,input.date),...(input.createId?{id:input.createId}:{})}
+  // An AI import may deliberately schedule work before its task's date. Renaming it
+  // must not move that instant to the task date when the time field was unchanged.
+  const schedule=old&&old.date===input.date&&old.properties.planned_start&&input.plannedTime===plannedTime(old)&&(!input.timeZone||input.timeZone===planTimeZone(old))?{...input,plannedTime:undefined}:input
+  return saveRecord({...record,title:input.title.trim(),date:input.date,body:input.body,properties:planSchedule(record.properties,input.date,schedule)},database,expected)
 })}
 export async function setRecordCompletion(id:string,done:boolean,database=defaultDB,at=Date.now()){return transaction(database,async()=>{
   const row=await database.records.get(id);if(!row||row.deleted||row.type!=='task')throw Error('找不到计划')

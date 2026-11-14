@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ZheyuanZeno/lifeos3.0/raw/main/docs/lifeos-ai-v1.schema.json",
+  "title": "LifeOS AI command v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "command_id",
+    "created_at",
+    "source",
+    "operations"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "lifeos-ai-v1"
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "reference"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/action"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "operations"
+            ],
+            "properties": {
+              "action": {
+                "const": "batch_import"
+              },
+              "operations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 50,
+                "items": {
+                  "$ref": "#/$defs/action"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "data"
+          ],
+          "properties": {
+            "action": {
+              "const": "create_plan"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "date": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "format": "date"
+                },
+                "deadline": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "anyOf": [
+                    {
+                      "format": "date"
+                    },
+                    {
+                      "const": ""
+                    }
+                  ]
+                },
+                "planned_start": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "anyOf": [
+                    {
+                      "format": "date-time"
+                    },
+                    {
+                      "const": ""
+                    }
+                  ]
+                },
+                "time_zone": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "source_id": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "module_id": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "title",
+                "date"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "data",
+            "target_id",
+            "expected_version"
+          ],
+          "properties": {
+            "action": {
+              "const": "update_plan"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "date": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "format": "date"
+                },
+                "deadline": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "anyOf": [
+                    {
+                      "format": "date"
+                    },
+                    {
+                      "const": ""
+                    }
+                  ]
+                },
+                "planned_start": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "anyOf": [
+                    {
+                      "format": "date-time"
+                    },
+                    {
+                      "const": ""
+                    }
+                  ]
+                },
+                "time_zone": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "source_id": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              }
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "expected_version": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "data",
+            "target_id",
+            "expected_version"
+          ],
+          "properties": {
+            "action": {
+              "const": "complete_plan"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 0
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "expected_version": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "data"
+          ],
+          "properties": {
+            "action": {
+              "const": "create_note"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "date": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "format": "date"
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "source_id": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "module_id": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "title",
+                "date"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "data",
+            "target_id",
+            "expected_version"
+          ],
+          "properties": {
+            "action": {
+              "const": "update_note"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "date": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "format": "date"
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "source_id": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              }
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "expected_version": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

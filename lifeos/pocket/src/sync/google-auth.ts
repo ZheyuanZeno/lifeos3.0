@@ -22,14 +22,14 @@ export class GoogleAuthorization {
  private accessToken=''
  private expiresAt=0
  private pending?:{resolve:()=>void;reject:(error:Error)=>void;timeout:ReturnType<typeof setTimeout>}
- constructor(private now:()=>number=Date.now){}
+ constructor(private now:()=>number=Date.now,private scope=DRIVE_SCOPE){}
  async prepare(clientId:string){
   if(!validClientId(clientId))throw new SyncError('请输入有效的 Google Web OAuth 客户端 ID','auth')
   await loadGoogleIdentity();const oauth=window.google!.accounts.oauth2
-  this.client=oauth.initTokenClient({client_id:clientId,scope:DRIVE_SCOPE,include_granted_scopes:false,callback:response=>{
+  this.client=oauth.initTokenClient({client_id:clientId,scope:this.scope,include_granted_scopes:false,callback:response=>{
    if(!this.pending)return
    const pending=this.pending;clearTimeout(pending.timeout);this.pending=undefined
-   if(response.error||!response.access_token||!oauth.hasGrantedAllScopes(response,DRIVE_SCOPE)){this.clear();pending.reject(new SyncError('未获得 Drive 应用数据权限，请重新授权','auth'));return}
+   if(response.error||!response.access_token||!oauth.hasGrantedAllScopes(response,this.scope)){this.clear();pending.reject(new SyncError('未获得所需 Google 权限，请重新授权','auth'));return}
    this.accessToken=response.access_token;this.expiresAt=this.now()+Math.max(0,Number(response.expires_in??0)*1000-30000);pending.resolve()
   },error_callback:error=>{const pending=this.pending;if(!pending)return;clearTimeout(pending.timeout);this.pending=undefined;pending.reject(new SyncError(error.type==='popup_failed_to_open'?'授权窗口未能打开，请允许弹窗并再次点击连接':error.type==='popup_closed'?'授权窗口已关闭，记录仍保存在本地':'Google 授权未完成，请重试','auth'))}})
  }

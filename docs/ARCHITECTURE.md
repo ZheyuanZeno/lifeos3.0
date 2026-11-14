@@ -89,6 +89,12 @@ plans.ts 将可选 DDL 存为 plan_deadline 日期，将分钟级详细时间存
 
 录音通过前台 MediaRecorder 获取，优先选择浏览器支持的音频格式；单段限制 5 分钟或 4MB。进入后台会尝试停止并保存，不保证后台持续录音。云端媒体交换校验 MIME、大小和 SHA-256；Pocket JSON 备份携带录音字节，导入按稳定 ID 合并，导出体积上限 128MB。备份不包含 Google token 或通知设备凭证。
 
+## AI Docs Bridge
+
+AI 命令是独立 lifeos-ai-v1 数据协议，不是底层操作日志。ai/protocol.ts 严格校验，ai/executor.ts 通过现有 savePlan/saveRecord/setRecordCompletion 在事务中应用。新增记录使用来源或命令/序号的确定 SHA-256 ID；修改携带完整业务记录的 expected_version，预览与提交间再次核对，过期拒绝。完整说明与 Schema 见 [AI-BRIDGE.md](AI-BRIDGE.md)。
+
+ai/docs.ts 调用真实 Drive files.create 和 Docs get/batchUpdate，使用独立的按需 drive.file 内存授权。私人双文档与隐藏 appDataFolder 分离。Context 仅主动导出用户选定范围，正文与笔记需额外选择，修订号约束原子覆盖并回读。Inbox 手动领取、人工审核，绝不改变 Drive 手动业务同步；本机 local 仅存文档绑定及导入结果，稳定业务 ID 才是跨设备去重依据。不恢复旧后台流程、不写 AI 专用云数据库。
+
 ## 通知
 
 通知设备首次用 Google 确认账号后获得独立、可撤销的设备凭证。计划提醒投影独立上传，不因 Drive 改为手动而停用。后台不接收计划正文、随手记、录音和附件，只使用提醒字段及因果合并元数据。通知设备凭证不进入 Drive 日志或 JSON 备份。
