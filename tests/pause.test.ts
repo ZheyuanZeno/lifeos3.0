@@ -9,13 +9,13 @@ import {MemoryDrive} from './sync-memory'
 const databases:PocketDatabase[]=[]
 function database(name='pause-'+crypto.randomUUID()){const db=new PocketDatabase(name);databases.push(db);return db}
 afterEach(async()=>{for(const db of databases.splice(0))await db.delete()})
-it('persists pause/resume intervals, excludes paused time and keeps the task lock until explicit end',async()=>{
+it('persists pause/resume intervals, excludes paused time and allows an independent parallel timer',async()=>{
  const db=database();await initialize(db);const s=await startSession('routine','daily-cooking',100000,db)
  await pauseSession(s.id,140000,db);const count=await db.operations.count();await pauseSession(s.id,150000,db);expect(await db.operations.count()).toBe(count)
- db.close();await db.open();expect(isSessionPaused((await db.sessions.get(s.id))!)).toBe(true);expect(sessionElapsed((await db.sessions.get(s.id))!,240000)).toBe(40000);expect((await db.local.get('activeSession'))?.value).toBe(s.id);await expect(startSession('routine','daily-eating',200000,db)).rejects.toThrow('先结束')
+ db.close();await db.open();expect(isSessionPaused((await db.sessions.get(s.id))!)).toBe(true);expect(sessionElapsed((await db.sessions.get(s.id))!,240000)).toBe(40000);expect((await db.local.get('activeSession'))?.value).toBe(s.id);const other=await startSession('routine','daily-eating',200000,db);await endSession(other.id,240000,db)
  await resumeSession(s.id,240000,db);const resumed=await db.operations.count();await resumeSession(s.id,250000,db);expect(await db.operations.count()).toBe(resumed)
  await pauseSession(s.id,260000,db);await resumeSession(s.id,280000,db);await endSession(s.id,310000,db)
- const row=(await db.sessions.get(s.id))!;expect(sessionElapsed(row)).toBe(90000);expect(row.pauses).toHaveLength(2);expect(await db.sessions.count()).toBe(1);expect(await db.local.get('activeSession')).toBeUndefined()
+ const row=(await db.sessions.get(s.id))!;expect(sessionElapsed(row)).toBe(90000);expect(row.pauses).toHaveLength(2);expect(await db.sessions.count()).toBe(2);expect(await db.local.get('activeSession')).toBeUndefined()
 })
 it('can end while paused and evaluates the 30-second rule against active time',async()=>{
  const db=database();await initialize(db);const short=await startSession('routine','daily-cooking',100000,db);await pauseSession(short.id,125000,db);await endSession(short.id,900000,db)

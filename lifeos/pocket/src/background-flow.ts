@@ -1,4 +1,3 @@
-import type {LifeRecord,Session} from './model'
 
 export interface BackgroundStep {id:string;title:string;minutes:number;startedAt?:string;expectedEndAt?:string;handledAt?:string}
 export interface BackgroundFlow {version:1;id:string;steps:BackgroundStep[];startedAt?:string;endedAt?:string}
@@ -21,9 +20,5 @@ export function parseFlow(value:string):BackgroundFlow {
  }
  return f
 }
-export function flowOf(record:Pick<LifeRecord,'properties'>):BackgroundFlow|undefined {return record.properties.background_flow?parseFlow(record.properties.background_flow):undefined}
-export const waitingStep=(flow:BackgroundFlow)=>flow.steps.find(s=>s.startedAt&&!s.handledAt)
-export const nextStep=(flow:BackgroundFlow)=>flow.steps.find(s=>!s.startedAt)
+// Legacy metadata only: retain old backups and deterministic property merges.
 export const flowRank=(flow:BackgroundFlow)=>(flow.endedAt?100:0)+(flow.startedAt?1:0)+flow.steps.reduce((n,s)=>n+(s.startedAt?1:0)+(s.handledAt?1:0),0)
-export function flowElapsed(flow:BackgroundFlow,now=Date.now()){return flow.startedAt?Math.max(0,Date.parse(flow.endedAt??new Date(now).toISOString())-Date.parse(flow.startedAt)):0}
-export function flowSessions(record:LifeRecord,sessions:Session[]){const f=flowOf(record);return sessions.filter(s=>s.subjectKind==='record'&&s.subjectId===record.id&&(!f?.startedAt||Date.parse(s.startedAt)>=Date.parse(f.startedAt)))}

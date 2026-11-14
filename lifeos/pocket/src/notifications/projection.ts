@@ -1,6 +1,6 @@
 import {validateOperation,type Operation} from '../model'
 import {materialize} from '../merge'
-import {flowOf,parseFlow,waitingStep} from '../background-flow'
+import {parseFlow} from '../background-flow'
 
 const fields=['type','title','status','deleted','module_id','properties']
 const properties=['planned_start','time_zone','plan_deadline','background_flow']
@@ -13,6 +13,8 @@ export function projectReminders(operations:Operation[]):Operation[]{
   const patch:Record<string,unknown>={}
   for(const key of o.entity==='modules'?['archived']:fields){
    if(!Object.hasOwn(o.patch,key))continue
+   // Preserve historical projection bytes for idempotent replay of existing operation IDs.
+   // background_flow is accepted only as legacy metadata; scheduling ignores it below.
    if(key==='properties')patch.properties=Object.fromEntries(Object.entries(o.patch.properties as Record<string,string>).filter(([k])=>properties.includes(k)))
    else patch[key]=o.patch[key]
   }
@@ -39,16 +41,13 @@ export function validateProjection(value:unknown):asserts value is Operation[]{
   }
  }
 }
-export interface Reminder {id:string;title:string;at:number;key:string;message?:string}
+export interface Reminder {id:string;title:string;at:number;key:string}
 export function reminderSchedule(operations:Operation[]):Reminder[]{
  const groups=new Map<string,Operation[]>()
  for(const o of operations){const key=o.entity+'/'+o.recordId;const group=groups.get(key)??[];group.push(o);groups.set(key,group)}
  const archived=new Set<string>(),records:Record<string,unknown>[]=[]
  for(const [key,group] of groups){const row=materialize(group).row;if(key.startsWith('modules/')){if(row.archived===true)archived.add(String(row.id))}else records.push(row)}
  return records.flatMap(r=>{
-  if(r.type!=='task'||r.status!=='todo'||r.deleted===true||archived.has(String(r.module_id))||typeof r.title!=='string')return []
-  const flow=flowOf({properties:(r.properties??{}) as Record<string,string>})
-  if(flow?.startedAt){const step=waitingStep(flow);return !flow.endedAt&&step?[{id:String(r.id),title:r.title,at:Date.parse(step.expectedEndAt!),key:String(r.id)+'_'+flow.id+'_'+step.id+'_'+Date.parse(step.expectedEndAt!),message:step.title+'时间到了，请处理'}]:[]}
   const at=Date.parse(String((r.properties as Record<string,string>|undefined)?.planned_start??''))
   return r.type==='task'&&r.status==='todo'&&r.deleted!==true&&!archived.has(String(r.module_id))&&typeof r.title==='string'&&Number.isFinite(at)?[{id:String(r.id),title:r.title,at,key:String(r.id)+'_'+at}]:[]
  }).sort((a,b)=>a.at-b.at||a.id.localeCompare(b.id))

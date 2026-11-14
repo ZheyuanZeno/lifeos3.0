@@ -6,7 +6,6 @@ import { serializeMedia,deserializeMedia,importMedia,type MediaAsset } from './m
 import { MIN_SESSION_MS,isSessionPaused,sessionElapsed } from './time'
 import {openSessions} from './shared-timer'
 import {planSchedule,type PlanScheduleInput} from './plans'
-import {flowOf,waitingStep} from './background-flow'
 
 async function identity(database:PocketDatabase):Promise<Identity>{const saved=await database.local.get('identity');if(saved)return saved.value as Identity;const value={id:uuid(),sequence:0,clock:0};await database.local.put({key:'identity',value});return value}
 // Caller must hold the same read-write transaction as the business write.
@@ -51,9 +50,7 @@ export async function setRecordCompletion(id:string,done:boolean,database=defaul
   const row=await database.records.get(id);if(!row||row.deleted||row.type!=='task')throw Error('找不到计划')
   if(done)for(const active of openSessions(await database.sessions.toArray()).filter(s=>s.subjectKind==='record'&&s.subjectId===id))await closeSession(active.id,at,database)
   if(row.status===(done?'done':'todo'))return row
-  const flow=flowOf(row)
-  if(flow){if(done){flow.startedAt??=new Date(at).toISOString();flow.endedAt=new Date(at).toISOString()}else delete flow.endedAt}
-  return putRow('records',{...row,status:done?'done':'todo',properties:{...row.properties,...(flow?{background_flow:JSON.stringify(flow)}:{})},updated_at:iso()},database)
+  return putRow('records',{...row,status:done?'done':'todo',updated_at:iso()},database)
 })}
 export function recordDraft(moduleId:string,date:string,type:'task'|'note'='task'):LifeRecord{const now=iso();return {id:uuid(),module_id:moduleId,type,date,title:'',body:'',time_label:'',amount:null,currency:'',status:type==='task'?'todo':'done',source_id:'',attachments:[],properties:{},created_at:now,updated_at:now,deleted:false}}
 export async function initialize(database=defaultDB){await transaction(database,async()=>{
@@ -70,9 +67,8 @@ export async function startSession(subjectKind:'routine'|'record',subjectId:stri
   const subject=subjectKind==='routine'?await database.routines.get(subjectId):await database.records.get(subjectId)
   if(!subject||('archived' in subject&&subject.archived)||('deleted' in subject&&subject.deleted))throw Error('找不到可计时事项')
   if(subjectKind==='record'&&('type' in subject&&(subject.type!=='task'||subject.status==='done')))throw Error('请先重新打开已完成的计划')
-  if(subjectKind==='record'&&waitingStep(flowOf(subject as LifeRecord)??{version:1,id:'none',steps:[]}))throw Error('请从后台流程选择去处理')
   const active=openSessions(await database.sessions.toArray())
-  if(active.length){const matching=active.find(s=>s.subjectId===subjectId&&s.subjectKind===subjectKind);if(matching)return matching;throw Error('请先结束当前任务')}
+  const matching=active.find(s=>s.subjectId===subjectId&&s.subjectKind===subjectKind);if(matching)return matching
   const now=new Date(at).toISOString(),owner=await identity(database)
   const row={id:uuid(),subjectId,subjectKind,title:subject.title,startedAt:now,endedAt:null,timeZone:zone(),deviceId:owner.id,created_at:now,updated_at:now}
   await putRow('sessions',row,database);await database.local.put({key:'activeSession',value:row.id});return row

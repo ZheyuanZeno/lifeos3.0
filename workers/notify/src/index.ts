@@ -106,7 +106,7 @@ export class ReminderHub {
    // Persist a short lease before network I/O. A retry uses the same tag/topic.
    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO deliveries VALUES (?,?,?,?,?)',device.id,reminder.key,'pending',attempts+1,Date.now()+60000)
    let status=0
-   try{status=await sendPush(this.env,device.subscription!,{title:reminder.title,body:reminder.message??'计划时间到了',id:reminder.id,tag:'plan-'+reminder.key})}catch{}
+   try{status=await sendPush(this.env,device.subscription!,{title:reminder.title,body:'计划时间到了',id:reminder.id,tag:'plan-'+reminder.key})}catch{}
    if([404,410].includes(status))this.saveDevice(device.id,{...device,subscription:null})
    const ok=status>=200&&status<300,terminal=ok||attempts>=4||(status>=400&&status<500&&status!==429)
    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO deliveries VALUES (?,?,?,?,?)',device.id,reminder.key,ok?'sent':terminal?'failed':'pending',attempts+1,Date.now()+Math.min(300000,30000*2**attempts))

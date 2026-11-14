@@ -11,8 +11,8 @@ afterEach(async()=>{for(const db of databases.splice(0))await db.delete()})
 async function pair(){const a=database(),b=database();await initialize(a);const s=await startSession('routine','daily-studying',100000,a);await applyOperations(await a.operations.toArray(),b);return {a,b,s}}
 async function converge(a:PocketDatabase,b:PocketDatabase){const incoming=[...await a.operations.toArray(),...await b.operations.toArray()],unique=[...new Map(incoming.map(o=>[o.id,o])).values()];await applyOperations(unique,a);await applyOperations([...unique].reverse(),b)}
 
-it('lets another device pause, annotate, resume and end the same ID while locking out a new task',async()=>{
- const {a,b,s}=await pair();expect(await b.local.get('activeSession')).toBeUndefined();expect(openSessions(await b.sessions.toArray())[0].id).toBe(s.id);await expect(startSession('routine','daily-cooking',140000,b)).rejects.toThrow('先结束');expect((await startSession('routine','daily-studying',140000,b)).id).toBe(s.id)
+it('lets another device pause, annotate, resume and end the same ID without duplicating that project timer',async()=>{
+ const {a,b,s}=await pair();expect(await b.local.get('activeSession')).toBeUndefined();expect(openSessions(await b.sessions.toArray())[0].id).toBe(s.id);expect((await startSession('routine','daily-studying',140000,b)).id).toBe(s.id)
  await pauseSession(s.id,140000,b);await saveSessionNote(s.id,'另一台手机备注',b);await converge(a,b);expect(isSessionPaused((await a.sessions.get(s.id))!)).toBe(true)
  await resumeSession(s.id,240000,a);await converge(a,b);await endSession(s.id,300000,b);await converge(a,b);for(const db of [a,b]){const row=(await db.sessions.get(s.id))!;expect(row.deviceId).toBe(s.deviceId);expect(row.note).toBe('另一台手机备注');expect(sessionElapsed(row)).toBe(100000);expect(openSessions(await db.sessions.toArray())).toHaveLength(0);expect(await db.sessions.count()).toBe(1)}
 })

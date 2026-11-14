@@ -51,20 +51,11 @@ try{
  // A changed minute supersedes the original alarm, with one visible delivery.
  const moving=plan('moving',Date.now()+1700,'moved'),changed=op('moving2',{properties:{planned_start:new Date(Date.now()+3600).toISOString()}},{sequence:2,clock:2,context:{a:1},record:'moved'})
  await call('state','PUT',a,{operations:[moving,changed]});await pause(2100);assert.equal(received.filter(p=>p.id==='moved').length,0);await until(()=>received.some(p=>p.id==='moved'));assert.equal(received.filter(p=>p.id==='moved').length,1)
- // Stage alarms work without an open page and use distinct delivery keys.
- const stageDue=Date.now()+1500,flow={version:1,id:'flow1',startedAt:new Date(stageDue-62000).toISOString(),steps:[{id:'wash',title:'洗涤',minutes:1,startedAt:new Date(stageDue-60000).toISOString(),expectedEndAt:new Date(stageDue).toISOString()},{id:'dry',title:'烘干',minutes:1}]}
- const stage=op('flow1',{type:'task',title:'洗衣服',status:'todo',deleted:false,module_id:'plans',properties:{background_flow:JSON.stringify(flow)}},{device:'workflow',record:'laundry'})
- assert.equal((await call('state','PUT',a,{operations:[stage]})).status,200)
- await until(()=>received.some(p=>p.id==='laundry'));assert.equal(received.filter(p=>p.id==='laundry').length,1);assert.equal(received.find(p=>p.id==='laundry').body,'洗涤时间到了，请处理')
- const handled=structuredClone(flow);handled.steps[0].handledAt=new Date().toISOString()
- const handledOp=op('flow2',{properties:{background_flow:JSON.stringify(handled)}},{device:'workflow',sequence:2,clock:2,context:{workflow:1},record:'laundry'})
- assert.equal((await call('state','PUT',a,{operations:[handledOp]})).status,200)
- const dryDue=Date.now()+1800,drying=structuredClone(handled);drying.steps[1]={...drying.steps[1],minutes:1,startedAt:new Date(dryDue-60000).toISOString(),expectedEndAt:new Date(dryDue).toISOString()}
- // Real stages cannot overlap. Set the handled time before this accelerated test stage.
- drying.steps[0].handledAt=drying.steps[1].startedAt
- const dryingOp=op('flow3',{properties:{background_flow:JSON.stringify(drying)}},{device:'workflow',sequence:3,clock:3,context:{workflow:2},record:'laundry'})
- assert.equal((await call('state','PUT',a,{operations:[dryingOp]})).status,200)
- await until(()=>received.filter(p=>p.id==='laundry').length===2);assert.equal(received.filter(p=>p.id==='laundry')[1].body,'烘干时间到了，请处理');assert.notEqual(received.filter(p=>p.id==='laundry')[0].tag,received.filter(p=>p.id==='laundry')[1].tag)
+ // Legacy stage metadata is accepted for old clients, but no longer schedules stage alarms.
+ const stageDue=Date.now()+1200,flow={version:1,id:'legacy',startedAt:new Date(stageDue-62000).toISOString(),steps:[{id:'wash',title:'洗涤',minutes:1,startedAt:new Date(stageDue-60000).toISOString(),expectedEndAt:new Date(stageDue).toISOString()}]}
+ const legacy=op('legacyflow',{type:'task',title:'旧洗衣计划',status:'todo',deleted:false,module_id:'plans',properties:{background_flow:JSON.stringify(flow)}},{device:'legacy',record:'laundry'})
+ assert.equal((await call('state','PUT',a,{operations:[legacy]})).status,200)
+ await pause(1700);assert.equal(received.filter(p=>p.id==='laundry').length,0)
  assert.equal((await call('test','POST',a,{})).status,200);assert.equal((await call('test','POST',a,{})).status,429)
  assert.equal((await call('subscription','DELETE',a,{})).status,200);assert.equal((await call('status','GET',a)).body.subscribed,false)
  await call('device','DELETE',a,{});assert.equal((await call('state','PUT',a,{operations:[]})).status,401)
