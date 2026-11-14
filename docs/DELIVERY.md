@@ -6,7 +6,7 @@
 
 数据复用原 task 与 properties.background_flow，人工会话复用 sessions，不新增业务库、表或备份版本。TS/Python 校验和合并防止并发旧属性编辑退回流程阶段；写入失败整体回滚。通知投影增加必要阶段元数据，每阶段独立安排和去重，正文/备注/人工历史不上传通知后台。
 
-已通过 strict 前后台检查、111 项 TypeScript 测试、15 项 Python 测试及完整 Chromium/WebKit 74 项浏览器回归；最终事务边界加强后针对新流程复查。真实 workerd SQLite alarm 可独立触发两个阶段的加密推送，解密后验证阶段文本和不同去重键。部署和原资料保留核验见本段后续记录。说明见 BACKGROUND-FLOWS.md；手机新阶段实收需用户确认。
+已通过 strict 前后台检查、111 项 TypeScript 测试、15 项 Python 测试及完整 Chromium/WebKit 74 项浏览器回归；最终事务边界加强后针对新流程复查。真实 workerd SQLite alarm 可独立触发两个阶段的加密推送，解密后验证阶段文本和不同去重键。最终新流程 4 项浏览器复查、两引擎静态离线、Wrangler 实际 bundle 的 workerd 推送检查通过。生产 Pages cb685e9f、Worker c5e3a338-583e-4b65-94eb-09f8bb834f28 已发布，资源哈希一致，两引擎线上同时学习/后台洗涤及离线重开通过。电脑 8771 更新前有 SQLite 一致性备份，更新后六张表完全相同、完整性检查通过。公开 main 已发布对应功能提交 9bf7e65，v3.0.0 标签保留原快照。说明见 BACKGROUND-FLOWS.md；手机新阶段实收需用户确认。
 
 
 

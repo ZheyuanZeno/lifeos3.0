@@ -35,14 +35,14 @@ Cloudflare Pages 将 /pocket/index.html 重定向到 /pocket/；Service Worker �
 
 ## 当前发布记录
 
-部署 ID：fbd10c59
-发布时源码版本：v3.0.0
+部署 ID：cb685e9f
+发布时源码提交：791fc29（公开 3.0 仓库对应 9bf7e65，当前活动与后台流程）
 固定网址：https://lifeos-pocket.pages.dev/pocket/
 
 通知后台：https://lifeos-pocket-notify.lifeos-pocket.workers.dev
-后台当前版本：2bd09ae3-3eca-47c8-9648-79cbc1366e75（上传代码后配置服务密钥）。Workers 子域名为 lifeos-pocket.workers.dev；应用通过 Pages 同源 /api/notify/* 调用，用户无需访问该后台域名。后台绑定 SQLite Durable Object REMINDERS / ReminderHub，保留免费计划，未启用付费升级。
+后台当前版本：c5e3a338-583e-4b65-94eb-09f8bb834f28（沿用既有 VAPID 和设备签名密钥）。Workers 子域名为 lifeos-pocket.workers.dev；应用通过 Pages 同源 /api/notify/* 调用，用户无需访问该后台域名。后台绑定 SQLite Durable Object REMINDERS / ReminderHub，保留免费计划，未启用付费升级。
 
-Pages 配置 NOTIFY_BACKEND 指向后台；后台三项 VAPID/设备签名密钥从 E:/Codex/notify-config/worker-secrets.json 上传，私钥从未进入仓库、前端或发布包。应用缓存版本 lifeos-pocket-984844ed877a1a2d。桌面 Python 转发显式使用 LifeOSDesktop/1.0 请求标识，修复 Cloudflare 对 Python 默认 UA 返回 1010 的兼容问题。
+Pages 配置 NOTIFY_BACKEND 指向后台；后台三项 VAPID/设备签名密钥从 E:/Codex/notify-config/worker-secrets.json 上传，私钥从未进入仓库、前端或发布包。应用缓存版本 lifeos-pocket-7bfc292bbeb3b185。桌面 Python 转发显式使用 LifeOSDesktop/1.0 请求标识，修复 Cloudflare 对 Python 默认 UA 返回 1010 的兼容问题。
 
 线上首次安装复核修复了首次 SW 接管时的多余刷新，以及未授权即查询原生推送订阅导致部分 WebKit 运行时卡住的问题。现在仅在 Notification.permission 为 granted 时读取订阅；用户点击开启仍直接调用 subscribe 保留手势。原生 WebKit 最小复现曾在默认权限下等待超过 15 秒，修复后原生首次安装、通知未授权时离线记录和两引擎生产 HTTPS 离线冷启动均通过。
 
@@ -57,3 +57,7 @@ Pages 配置 NOTIFY_BACKEND 指向后台；后台三项 VAPID/设备签名密钥
 ## 3.0 手动同步发布
 
 Google Drive 现在只有点击“立即同步”才执行，连接仅授权；空闲、保存、回前台和恢复网络不再发起 Drive 交换。通知投影独立更新，原站点、通知后台与数据库保持。完整 70 项浏览器回归通过；生产资源与本地 app.js/sw.js 哈希一致，两种引擎的 HTTPS 离线重开、计划和随手记验证通过。新源码仓库为 ZheyuanZeno/lifeos3.0，标签 v3.0.0；初始私有发布后，所有者要求改为公开源码，最新阅读入口见 README 和 docs/CHATGPT-ACCESS.md。
+
+## 后台流程发布
+
+新增当前活动与后台流程并行、阶段配置、真实处理时间线、人工投入与历时分离及独立阶段通知。先部署兼容旧计划的 Worker，再发布 Pages；地址及设备凭证不变。Wrangler 实际 Worker 构建包通过 workerd 定时加密推送测试。发布后 10 个入口资源 HTTP 200，线上 app.js/sw.js SHA-256 与受测包一致；Chromium/WebKit 均通过生产 HTTPS 创建洗衣流程、洗涤等待同时计时学习、离线关闭重开及去处理阶段，也复核普通计划与随手记离线保存。测试使用隔离浏览器上下文，不向个人数据库写测试事项。电脑 8771 更新前保存 SQLite 一致性备份，更新后六张原表逐行摘要相同且 integrity_check=ok；转发 ready:true。新增阶段的手机系统通知实收仍需用户确认。
