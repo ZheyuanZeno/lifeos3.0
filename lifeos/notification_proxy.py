@@ -14,8 +14,9 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def relay(method, route, authorization, raw=None):
-    if method not in METHODS.get(route, set()):
+def relay(method, route, authorization, raw=None, native=False):
+    methods = {key: {"POST"} for key in ("enroll", "pair", "revoke", "projection", "pending", "ack")} if native else METHODS
+    if method not in methods.get(route, set()):
         return {'error': '未找到通知接口'}, 404
     if len(authorization) > 4096 or raw is not None and len(raw) > LIMIT:
         return {'error': '通知请求超过限制'}, 413
@@ -23,7 +24,7 @@ def relay(method, route, authorization, raw=None):
                'User-Agent': 'LifeOSDesktop/1.0'}
     if authorization:
         headers['Authorization'] = authorization
-    request = Request('https://lifeos-pocket.pages.dev/api/notify/' + route,
+    request = Request(('https://lifeos-pocket.pages.dev/api/mcp-device/' if native else 'https://lifeos-pocket.pages.dev/api/notify/') + route,
                       data=raw, headers=headers, method=method)
     try:
         try:

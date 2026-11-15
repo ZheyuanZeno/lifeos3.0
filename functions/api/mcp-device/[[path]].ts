@@ -1,0 +1,6 @@
+export const onRequest:PagesFunction=async({request,params})=>{
+ const action=String(params.path??'').replace(/,/g,'/');if(!['enroll','pair','revoke','projection','pending','ack'].includes(action)||request.method!=='POST')return new Response('Not found',{status:404})
+ const origin=request.headers.get('Origin');if(origin&&origin!==new URL(request.url).origin)return new Response('Forbidden',{status:403})
+ const chunks:Uint8Array[]=[];let size=0;const reader=request.body?.getReader();if(reader)while(true){const part=await reader.read();if(part.done)break;size+=part.value.byteLength;if(size>262144){await reader.cancel();return new Response('Too large',{status:413})}chunks.push(part.value)}const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
+ try{const result=await fetch('https://lifeos-mcp.lifeos-pocket.workers.dev/device/'+action,{method:'POST',headers:{Authorization:request.headers.get('Authorization')??'','Content-Type':'application/json'},body:bytes,redirect:'manual',signal:AbortSignal.timeout(20000)});return new Response(result.body,{status:result.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch{return Response.json({error:'原生 AI 服务暂时不可用，本地功能不受影响'},{status:502})}
+}

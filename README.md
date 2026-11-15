@@ -1,6 +1,6 @@
 # LifeOS 3.0
 
-离线优先的个人生活管理系统：电脑保留原有 Python + SQLite 白板，手机使用可安装的 LifeOS Pocket。Google Drive 提供手动跨设备同步，Cloudflare 提供计划系统通知。
+离线优先的个人生活管理系统：电脑保留原有 Python + SQLite 白板，手机使用可安装的 LifeOS Pocket。Google Drive 提供手动跨设备同步，Cloudflare 提供计划系统通知和独立 OAuth MCP 连接。
 
 ## 3.0 的主要变化
 
@@ -15,7 +15,8 @@
 - 文字与前台录音随手记，历史可编辑、删除；录音可经 Drive 同步到其他设备及电脑附件。
 - JSON 备份导出、校验与幂等合并恢复，保留旧数据格式。
 - iPhone 主屏幕应用及兼容 Android 浏览器可开启 Web Push 通知，按计划详细时间提醒。
-- AI 集成：Google Docs 双文档收件箱/上下文、JSON 离线导入、变更审核、版本冲突检查和跨设备稳定 ID 去重。默认人工确认；[配置与 ChatGPT 提示词](docs/AI-BRIDGE.md)。
+- 原生 AI 连接：Claude 等兼容客户端可通过 OAuth Remote MCP 查询、创建计划/笔记，前台自动领取，修改需审核；[首次连接与验收](docs/REMOTE-MCP.md)。
+- 高级备用 AI 集成：Google Docs 双文档收件箱/上下文、JSON 离线导入、变更审核、版本冲突检查和跨设备稳定 ID 去重。默认人工确认；[配置与 ChatGPT 提示词](docs/AI-BRIDGE.md)。
 
 ## 整体架构
 
@@ -23,6 +24,8 @@ LifeOS 3.0 使用“本地先保存、按需交换数据、后台独立提醒”
 
 ~~~mermaid
 flowchart LR
+    Chat[AI 聊天文字/图片] --> MCP[OAuth Remote MCP / 有限投影与命令]
+    MCP <-->|仅前台自动领取和回执| Pocket
     User[用户操作] --> Pocket[Pocket PWA / TypeScript]
     Pocket --> Local[(IndexedDB / Dexie)]
     Local -->|用户点击立即同步| Drive[(Google Drive 应用数据区)]
@@ -35,7 +38,7 @@ flowchart LR
     Push --> SW[Service Worker 系统通知]
 ~~~
 
-GitHub 只托管源码。Cloudflare Pages 托管 Pocket 静态资源及通知转发；Worker 保存提醒元数据。Google Cloud 控制台里的 Drive API/OAuth 配置不等于建立了 Firestore 业务数据库。
+GitHub 只托管源码。Cloudflare Pages 托管 Pocket 静态资源及通知转发；通知 Worker 保存提醒元数据，独立 MCP Worker 保存明确授权的有限投影与命令，均不取代本地数据库。Google Cloud 控制台里的 Drive API/OAuth 配置不等于建立了 Firestore 业务数据库。
 
 |层|实现|主要职责|
 |---|---|---|

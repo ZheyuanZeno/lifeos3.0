@@ -1,5 +1,17 @@
 # LifeOS 3.0 交付记录
 
+## 2026-11-15：原生 Remote MCP
+
+新增独立 lifeos-mcp Worker：官方 OAuth Provider / PKCE / 刷新令牌、官方 MCP SDK Streamable HTTP、11 个严格参数工具、一次性设备配对、读/写/笔记独立权限、账号隔离、撤销和有界请求/速率。OAuth 状态使用 KV，有限投影/幂等命令/回执使用 SQLite Durable Object，不是新业务主数据库，未启用付费计划。
+
+Pocket 设置新增原生 AI 连接，默认未来30天的最少计划投影，笔记另行选择；前台自动领取，修改/完成/超过10项本机审核，确定性来源ID和本地再次版本检查。ACK断网只重试回执，不重复写入。通过既有AI执行器与repository事务生成正常因果日志；设备凭证失效会清除旧绑定并允许重新配对。原Google Drive完全手动、通知Worker、多计时器、数据库名、旧备份和SQLite交换保留。原Docs/JSON入口收为高级备用。非零提前提醒明确拒绝，现有开始时提醒及后台确认与手机收件分开报告。
+
+验证：128项TypeScript测试、15项Python测试、前后台strict类型检查、构建、真实workerd OAuth PKCE/刷新/工具发现/队列/查询/冲突/两设备回执/隔离/撤销、原通知workerd加密alarm检查、完整80项Chromium/WebKit回归；新增批量结构化图片夹具及ACK失败重试两引擎复查通过。生产10资源200和JS/SW哈希一致，两引擎线上离线冷启动、计划/笔记、备用AI审核/重放及双计时器通过。MCP真实根入口/OAuth发现/动态注册/浏览器同意页已验证，未授权MCP与设备接口401、跨站设备写入403；电脑更新前一致性备份，更新后原六张SQLite表完全一致。
+
+生产 Pages 252e87a5，缓存 lifeos-pocket-e2b58baee8dd529d，独立 MCP Worker 8eceec3e-bcf6-4436-af40-8c1e61a8f31e。未触碰 v3.0.0 标签和原通知 Worker。
+
+尚未完成用户真实Google首次配对、真实Claude免费账号授权/工具调用、真实图片视觉与手机通知联合验收，不能将Mock或部署成功描述成这些真机验收通过。步骤、全部工具、协议、安全边界及已知限制见REMOTE-MCP.md。
+
 ## 2026-11-14：AI Docs Bridge v1
 
 新增独立 lifeos-ai-v1 JSON Schema / 命令块解析、业务预览与事务执行，支持计划新建/修改/完成、笔记新建/修改和扁平批量；新增记录用来源或命令/序号的确定 SHA-256 ID，修改使用完整业务版本前置条件，提交再次核对。JSON 文件与 Docs Inbox 共享同一解析/执行路径，默认全部人工审核，错误块独立、失败批次回滚。

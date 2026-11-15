@@ -33,7 +33,7 @@ Pages 托管 Pocket 程序资源与通知同源转发接口，不上传 SQLite�
 
 Cloudflare Pages 将 /pocket/index.html 重定向到 /pocket/；Service Worker 应预缓存规范地址 /pocket/，避免将带重定向标记的响应作为离线导航响应。构建缓存版本同时包含资源和构建脚本指纹，确保 Service Worker 修改也能触发更新。纯静态冒烟测试模拟这个重定向。
 
-## 当前发布记录
+## 历史发布记录（AI Docs Bridge）
 
 部署 ID：0dd1f3a1
 发布时源码提交：8ea650c（公开 3.0 仓库对应 e858d3c，AI Docs Bridge v1）
@@ -69,3 +69,9 @@ Google Drive 现在只有点击“立即同步”才执行，连接仅授权；�
 ## AI Docs Bridge 发布
 
 新增设置页私人 Docs Inbox/Context、独立 drive.file 授权、JSON 离线导入与人工审核、版本前置条件及稳定来源 ID 去重，保持手动业务同步、多计时器和通知。Python 与静态包 CSP 仅补充 docs.googleapis.com；通知后台无需变更。生产 10 个资源 200、JS/SW 哈希一致；Chromium/WebKit 线上使用隔离浏览器验证离线 JSON 审核/写入/重复跳过/冷启动和两个计时器保留，未读取真实 Google 或 Canvas 数据。真实账号需启用 Docs API，并完成 AI-BRIDGE.md 中手工验收。电脑更新前备份、更新后六张 SQLite 表摘要完全相同。
+
+## 原生 MCP 独立服务
+
+`workers/mcp/wrangler.jsonc` 部署 lifeos-mcp，地址 https://lifeos-mcp.lifeos-pocket.workers.dev/mcp 。官方 OAuth Provider 使用 OAUTH_KV，HUB 为 SQLite Durable Object；不改通知 Worker，不新增付费计划。Pages `/api/mcp-device/*` 和电脑同源转发仅允许固定设备路由，不开放免认证业务工具。首次绑定证明 Google 账号，之后使用独立可撤销设备凭证。详情见 [REMOTE-MCP.md](REMOTE-MCP.md)。
+
+当前 MCP 发布版本：8eceec3e-bcf6-4436-af40-8c1e61a8f31e；Pages 原生连接发布：252e87a5；缓存 lifeos-pocket-e2b58baee8dd529d。真实根入口、OAuth 发现、动态注册与同意页可达，未授权 MCP 401；Pages/电脑设备接口未授权401、跨站403。真实账号授权后的工具调用与 Claude 客户端待用户首次配对验收。

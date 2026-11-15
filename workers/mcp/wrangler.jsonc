@@ -1,0 +1,9 @@
+{
+ "name":"lifeos-mcp","main":"src/index.ts","compatibility_date":"2026-08-01",
+ "compatibility_flags":["nodejs_compat","global_fetch_strictly_public"],
+ "vars":{"MCP_ORIGIN":"https://lifeos-mcp.lifeos-pocket.workers.dev"},
+ "durable_objects":{"bindings":[{"name":"HUB","class_name":"LifeOSHub"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["LifeOSHub"]}],
+ "kv_namespaces":[{"binding":"OAUTH_KV","id":"009b2a5fd1734480aff59731576d0530"}],
+ "observability":{"enabled":false}
+}

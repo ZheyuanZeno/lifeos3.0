@@ -482,8 +482,9 @@ class Handler(BaseHTTPRequestHandler):
         allowed = (f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}')
         if not self.safe_host() or origin and origin not in allowed:
             return self.reply({'error': '不允许跨站访问通知'}, 403)
-        route = urlparse(self.path).path.removeprefix('/api/notify/')
-        if self.command not in notification_proxy.METHODS.get(route, set()):
+        native = urlparse(self.path).path.startswith('/api/mcp-device/')
+        route = urlparse(self.path).path.removeprefix('/api/mcp-device/' if native else '/api/notify/')
+        if self.command not in ({key: {'POST'} for key in ('enroll', 'pair', 'revoke', 'projection', 'pending', 'ack')} if native else notification_proxy.METHODS).get(route, set()):
             return self.reply({'error': '未找到通知接口'}, 404)
         raw = None
         if self.command != 'GET':
@@ -496,16 +497,16 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('通知请求未完整接收')
             except ValueError as exc:
                 return self.reply({'error': str(exc)}, 400)
-        payload, status = notification_proxy.relay(self.command, route, self.headers.get('Authorization', ''), raw)
+        payload, status = notification_proxy.relay(self.command, route, self.headers.get('Authorization', ''), raw, native=native)
         return self.reply(payload, status)
 
     def do_PUT(self):
-        if urlparse(self.path).path.startswith('/api/notify/'):
+        if urlparse(self.path).path.startswith(('/api/notify/', '/api/mcp-device/')):
             return self.notification_request()
         return self.reply({'error': '未找到'}, 404)
 
     def do_DELETE(self):
-        if urlparse(self.path).path.startswith('/api/notify/'):
+        if urlparse(self.path).path.startswith(('/api/notify/', '/api/mcp-device/')):
             return self.notification_request()
         return self.reply({'error': '未找到'}, 404)
 
@@ -571,7 +572,7 @@ class Handler(BaseHTTPRequestHandler):
             self.reply({"error": str(e)}, 400)
 
     def do_POST(self):
-        if urlparse(self.path).path.startswith('/api/notify/'):
+        if urlparse(self.path).path.startswith(('/api/notify/', '/api/mcp-device/')):
             return self.notification_request()
         if not self.safe_host() or self.headers.get("X-LifeOS-Token") != TOKEN:
             return self.reply({"error": "请刷新页面后重试"}, 403)

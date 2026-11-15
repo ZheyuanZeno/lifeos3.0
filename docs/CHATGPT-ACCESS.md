@@ -65,3 +65,7 @@ https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/ARCHITECTURE.m
 ## 能读取什么
 
 公开的是程序代码、配置模板和说明，仓库不保存实际个人计划、日记、录音、数据库、登录令牌或服务私钥。ChatGPT 读到源码，不代表读到了手机或 Google Drive 中的生活记录，也不会因此获得添加计划或控制通知的能力。当前可由用户启用 [AI Docs Bridge](AI-BRIDGE.md)：主动导出选定 Context，AI 向私人 Inbox 提交结构化命令，LifeOS 审核后经业务层执行。没有 Docs 编辑能力时使用同协议 JSON 文件；不直接连接或修改私人数据库，真实 Plus 写入需按指南验收。
+
+## 实际管理生活数据
+
+阅读公开源码不等于访问个人数据。兼容 OAuth Streamable HTTP MCP 的聊天客户端可经首次配对取得用户明确授权，之后使用原生工具查询/创建计划和笔记；[连接与验收](REMOTE-MCP.md)。ChatGPT 的公开仓库读取、Google Drive Docs 编辑和自定义远程 MCP 是不同能力，不保证每种套餐都同时提供。Claude Free 当前官方说明及未完成的真机验收边界见同文档。

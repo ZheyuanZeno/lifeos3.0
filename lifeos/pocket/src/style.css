@@ -33,4 +33,6 @@
 
 .activity-heading{font-size:14px;margin:4px 0 10px}
 
+#native-ai{min-width:0;overflow-wrap:anywhere}#native-ai label{display:block;margin:10px 0;font-size:13px}#native-ai input[type=checkbox]{width:20px;min-height:20px;vertical-align:middle;margin-right:8px}#native-ai .inline{flex-wrap:wrap}#native-ai button{max-width:100%;white-space:normal}#native-ai pre{font-size:11px}#ai-legacy{margin-top:24px}
+
 #ai-root{overflow-wrap:anywhere;min-width:0}#ai-root pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:280px;overflow:auto;padding:10px;background:var(--soft);border-radius:8px}#ai-root details{margin-top:12px}#ai-root article{margin:10px 0;padding:8px 0;border-top:1px solid var(--line)}#ai-root label{display:block;margin:8px 0;font-size:13px}#ai-root input[type=checkbox]{width:20px;min-height:20px;vertical-align:middle;margin-right:8px}#ai-root input[type=file]{max-width:100%;font-size:12px}#ai-root button{max-width:100%;white-space:normal}#ai-root .inline{flex-wrap:wrap}

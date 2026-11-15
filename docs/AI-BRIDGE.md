@@ -1,3 +1,5 @@
+> 原生聊天连接优先使用 [Remote MCP](REMOTE-MCP.md)。本文是高级备用 Docs/JSON 通道，不是 MCP 的依赖。
+
 # Google Docs AI Bridge v1
 
 LifeOS 的设置页新增 AI 集成。业务数据库仍为原 IndexedDB / SQLite；Docs 仅作收件箱与主动导出的数据快照。默认全部操作人工审核，不提供自动信任导入，不在手机关闭期间轮询。普通 Drive appDataFolder 同步仍完全手动。旧后台流程没有恢复。

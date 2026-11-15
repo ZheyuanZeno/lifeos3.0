@@ -5,6 +5,7 @@ import {projectReminders,MAX_OPERATIONS} from './projection'
 
 interface Credential {token:string;accountId:string;expires:number}
 export class NotificationController {
+ hasPublished(operations:Operation[]){return !!this.lastSent&&this.lastSent===JSON.stringify({operations:projectReminders(operations)})}
  ready=false;busy=false;enabled=false;status='正在检查通知服务…';error=''
  private publicKey='';private registration?:ServiceWorkerRegistration;private credential?:Credential
  private initialized=false;private serviceReady=false;private running=false;private again=false;private timer?:ReturnType<typeof setTimeout>

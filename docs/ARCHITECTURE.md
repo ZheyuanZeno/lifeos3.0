@@ -139,3 +139,9 @@ Pages function 将这些请求转发给 Worker；本机 Python 使用受限同�
 - 录音只保证前台录制；大量历史和录音目前仍在本地保留，尚无自动缓存淘汰。
 - 同步日志未进行大规模压缩；当前版本不承诺无限记录量或无限空间。
 - Cloudflare 通知不是完整业务云数据库；Google Drive 存同步文件，不是 Firestore。
+
+## 原生 Remote MCP
+
+独立 lifeos-mcp Worker 使用官方 OAuth Provider、PKCE 和 MCP SDK Streamable HTTP。OAuth KV 存授权状态，SQLite Durable Object 按 Google 账号哈希隔离有限业务投影、幂等命令及执行回执；不是云端主数据库。Pocket 前台自动发布用户授权范围并领取命令，经现有 AI 校验/预览/执行器和 repository 事务保存，正常生成因果日志。修改/完成/大批次本机审核，版本前置条件防止旧投影覆盖新记录，确定性来源 ID 保证跨设备收敛。
+
+Google Drive 仍手动，通知 Worker 独立，原数据库名/表/备份不改。默认不上传笔记正文、计划正文、附件或计时日志；原始图片由聊天模型理解，不进入服务。部署、权限、状态和真机验收见 [REMOTE-MCP.md](REMOTE-MCP.md)。Docs/JSON 保留为高级备用。
