@@ -6,7 +6,7 @@ import {digest} from './util'
 export {LifeOSHub} from './hub'
 interface Env {OAUTH_KV:KVNamespace;OAUTH_PROVIDER:OAuthHelpers;HUB:DurableObjectNamespace;MCP_ORIGIN:string}
 const json=(v:unknown,status=200)=>Response.json(v,{status,headers:{'Cache-Control':'no-store'}})
-const scopeLabels:Record<string,string>={'lifeos:read':'读取计划和连接状态','lifeos:create':'创建计划','lifeos:modify':'修改已有计划/随手记、标记计划完成（需本机审核）','lifeos:notes':'读取和管理随手记（含正文）','offline_access':'保持连接（允许刷新登录）'}
+const scopeLabels:Record<string,string>={'lifeos:read':'读取计划和连接状态','lifeos:create':'创建计划','lifeos:modify':'修改已有计划/随手记、标记计划完成（需本机审核）','lifeos:notes':'读取和管理随手记（含正文）','lifeos:daily':'读取当日记录（计时、有效用时和备注）','offline_access':'保持连接（允许刷新登录）'}
 const esc=(s:unknown)=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';')
 async function body(r:Request){const reader=r.body?.getReader();let raw='',size=0;const decoder=new TextDecoder();if(reader)while(true){const chunk=await reader.read();if(chunk.done)break;size+=chunk.value.byteLength;if(size>262144){await reader.cancel();throw Error('请求超过256KB')}raw+=decoder.decode(chunk.value,{stream:true})}return JSON.parse(raw+decoder.decode()||'{}')}
 async function hub(env:Env,account:string,path:string,input:unknown){if(!/^[a-f0-9]{64}$/.test(account))throw Error('账号编号无效');return env.HUB.get(env.HUB.idFromName(account)).fetch(new Request('https://hub'+path,{method:'POST',body:JSON.stringify(input)}))}

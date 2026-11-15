@@ -15,7 +15,7 @@
 - 文字与前台录音随手记，历史可编辑、删除；录音可经 Drive 同步到其他设备及电脑附件。
 - JSON 备份导出、校验与幂等合并恢复，保留旧数据格式。
 - iPhone 主屏幕应用及兼容 Android 浏览器可开启 Web Push 通知，按计划详细时间提醒。
-- 原生 AI 连接：Claude 等兼容客户端可通过 OAuth Remote MCP 查询、创建计划/笔记，前台自动领取，修改需审核；[首次连接与验收](docs/REMOTE-MCP.md)。
+- 原生 AI 连接：Claude 等兼容客户端可通过 OAuth Remote MCP 查询、创建计划/笔记，按独立授权读取当日计时记录，前台自动领取，修改需审核；[首次连接与验收](docs/REMOTE-MCP.md)。
 - 高级备用 AI 集成：Google Docs 双文档收件箱/上下文、JSON 离线导入、变更审核、版本冲突检查和跨设备稳定 ID 去重。默认人工确认；[配置与 ChatGPT 提示词](docs/AI-BRIDGE.md)。
 
 ## 整体架构

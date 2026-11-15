@@ -74,4 +74,4 @@ Google Drive 现在只有点击“立即同步”才执行，连接仅授权；�
 
 `workers/mcp/wrangler.jsonc` 部署 lifeos-mcp，地址 https://lifeos-mcp.lifeos-pocket.workers.dev/mcp 。官方 OAuth Provider 使用 OAUTH_KV，HUB 为 SQLite Durable Object；不改通知 Worker，不新增付费计划。Pages `/api/mcp-device/*` 和电脑同源转发仅允许固定设备路由，不开放免认证业务工具。首次绑定证明 Google 账号，之后使用独立可撤销设备凭证。详情见 [REMOTE-MCP.md](REMOTE-MCP.md)。
 
-当前 MCP 发布版本：2223981d-55d8-49fe-b3f8-e75482928e38；Pages 原生连接发布：15b0300a；缓存 lifeos-pocket-6f0dc424bf887a3a。真实根入口、OAuth 发现、动态注册与同意页可达，未授权 MCP 401；Pages/电脑设备接口未授权401、跨站403。真实账号授权后的工具调用与 Claude 客户端待用户首次配对验收。
+当前 MCP 发布版本：9927264c-8796-443b-a38a-e95999dc132a；Pages 原生连接发布：a3f59c42；缓存 lifeos-pocket-99e6b03b7eb987ae。真实根入口、OAuth 发现、动态注册与同意页可达，未授权 MCP 401；Pages/电脑设备接口未授权401、跨站403。真实账号授权后的工具调用与 Claude 客户端待用户首次配对验收。

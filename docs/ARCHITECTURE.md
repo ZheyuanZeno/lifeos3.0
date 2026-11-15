@@ -145,3 +145,7 @@ Pages function 将这些请求转发给 Worker；本机 Python 使用受限同�
 独立 lifeos-mcp Worker 使用官方 OAuth Provider、PKCE 和 MCP SDK Streamable HTTP。OAuth KV 存授权状态，SQLite Durable Object 按 Google 账号哈希隔离有限业务投影、幂等命令及执行回执；不是云端主数据库。Pocket 前台自动发布用户授权范围并领取命令，经现有 AI 校验/预览/执行器和 repository 事务保存，正常生成因果日志。修改/完成/大批次本机审核，版本前置条件防止旧投影覆盖新记录，确定性来源 ID 保证跨设备收敛。
 
 Google Drive 仍手动，通知 Worker 独立，原数据库名/表/备份不改。默认不上传笔记正文、计划正文、附件或计时日志；原始图片由聊天模型理解，不进入服务。部署、权限、状态和真机验收见 [REMOTE-MCP.md](REMOTE-MCP.md)。Docs/JSON 保留为高级备用。
+
+## 当日记录只读投影
+
+新增 lifeos:daily 独立权限及 lifeos_list_daily_records 工具。Pocket按既有session规则从已结束有效段构建指定日期范围投影，不改变sessions表、业务保存、因果日志或备份格式。每段/日以会话ID+日期去重，整段版本冲突不以更新时间覆盖，冲突合计明确不完整。跨日分摊沿用录制时区dayRange，暂停扣除、多计时器分别累计，与当日记录UI保持。默认不共享历史；仅用户主动开放后上传计时及备注，不上传暂停明细、媒体或原始日志。

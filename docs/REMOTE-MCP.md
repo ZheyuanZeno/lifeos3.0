@@ -35,6 +35,7 @@
 |lifeos_list_plans / lifeos_get_plan|分页查询计划 / 稳定 ID 读取|
 |lifeos_create_plan / lifeos_create_plans|单条/批量创建，稳定来源去重|
 |lifeos_update_plan / lifeos_complete_plan|带版本前置条件的修改/完成|
+|lifeos_list_daily_records|按日期分页读取每日日程的“当日记录”，需独立只读授权|
 |lifeos_list_notes|另行授权范围内的笔记|
 |lifeos_create_note / lifeos_update_note|新增/带版本修改笔记|
 |lifeos_get_command_status|执行状态、各设备回执及提醒后台状态|
@@ -86,6 +87,20 @@ LifeOS repository ← 校验/去重/冲突检查/必要审核 ← Pocket
 
 OAuth KV 保存官方 Provider 的授权/令牌状态，SQLite Durable Object 保存账号隔离的有限投影和命令。使用官方免费计划资源，未启用付费升级；请求受 Workers/KV/DO 免费额度约束，故障时只暂停 AI，不影响本地计时和离线使用。参考 [OAuth](https://developers.cloudflare.com/agents/model-context-protocol/protocol/authorization/)、[Transport](https://developers.cloudflare.com/agents/model-context-protocol/protocol/transport/)、[KV 额度](https://developers.cloudflare.com/kv/platform/pricing/)、[DO 额度](https://developers.cloudflare.com/durable-objects/platform/pricing/)。
 
+## 读取当日记录
+
+在 LifeOS 设置勾选“允许 AI 读取当日记录（计时及备注）”，点击绑定按钮保存并生成新配对码。重新授权聊天连接时，还要在 OAuth 页面勾选“读取当日记录（计时、有效用时和备注）”（`lifeos:daily`）。旧授权不会自动扩大；旧客户端/旧配对默认不开放此功能。
+
+工具：`lifeos_list_daily_records({"date":"2026-11-15","offset":0,"limit":30})`，日期示例不代表真实数据。先用 get_status 确定当前日期、时区和 `permissions.daily`，再查询指定日期。默认30、最多100项，使用 next_offset 继续分页。
+
+返回与“当日记录”同范围的已结束计时：固定项目/计划名称、稳定会话 ID、所属项目、原始起止时间、记录时区、整段有效用时 `duration_ms`、该日有效用时 `day_duration_ms`、每段备注及业务版本。沿用暂停扣除、超过30秒阈值、删除过滤和按原记录时区的跨午夜分摊；当前未结束计时不在此历史中。并行项目独立累计，所以合计可能超过自然经过的时间。
+
+此权限包含计时备注，与随手记正文权限独立；不包含录音、附件、原始暂停列表、设备凭证或操作日志，也不提供修改历史/远程控制计时的工具。每设备最多500条按日投影，同时受256KB请求限制；超限时明确报告并清空此次不完整历史投影，原计划/随手记读取及命令领取继续。应缩小授权日期范围后重新配对。手机需前台联网更新；另一设备未手动Drive同步的内容仍可能缺失。
+
+响应包含 total_count、分页、total_effective_ms、complete、各设备更新信息。跨设备同一会话/日期用稳定ID去重；版本不同标为 conflict，合计排除冲突段且 complete=false；投影未上传/超限也不宣称完整。complete只表示已收到的授权投影可完整返回，不保证其他设备都已手动同步。
+
+可以对 Claude 说：“读取我今天的当日记录，按项目汇总有效用时，结合每段备注帮我复盘。先检查 lifeos_get_status 的 daily 权限和数据新鲜度，不要把并行计时之和当成没有重叠的全天时长。”
+
 ## 可复制的聊天提示词
 
 ```text
@@ -112,10 +127,10 @@ OAuth KV 保存官方 Provider 的授权/令牌状态，SQLite Durable Object �
 |范围|文件|
 |---|---|
 |独立 MCP|`workers/mcp/src/index.ts`、`hub.ts`、`contracts.ts`、`util.ts`、`workers/mcp/tsconfig.json`、`wrangler.jsonc`|
-|Pocket|`lifeos/pocket/src/native-ai.ts`、`main.ts`、`style.css`、`notifications/controller.ts`|
+|Pocket|`lifeos/pocket/src/native-ai.ts`、`native-daily.ts`、`main.ts`、`style.css`、`notifications/controller.ts`|
 |同源设备转发|`functions/api/mcp-device/[[path]].ts`、`lifeos/app.py`、`lifeos/notification_proxy.py`|
 |依赖与脚本|`package.json`、`package-lock.json`、`scripts/test-mcp.mjs`|
-|测试|`tests/mcp-contracts.test.ts`、`tests/e2e/native-ai.spec.ts`、`tests/e2e/native-notes.spec.ts`、`tests/e2e/ai-bridge.spec.ts`|
+|测试|`tests/native-daily.test.ts`、`tests/e2e/native-daily.spec.ts`、`tests/mcp-contracts.test.ts`、`tests/e2e/native-ai.spec.ts`、`tests/e2e/native-notes.spec.ts`、`tests/e2e/ai-bridge.spec.ts`|
 |文档|`README.md`、`llms.txt`、`docs/REMOTE-MCP.md`、`ARCHITECTURE.md`、`AI-BRIDGE.md`、`CHATGPT-ACCESS.md`、`CLOUDFLARE.md`、`DELIVERY.md`|
 
 无需新建 Google Cloud OAuth 客户端、扩大 Google Drive 权限或配置新 Google 客户端密钥；复用原已启用的 Drive API 和公开客户端 ID进行首次账号证明。Cloudflare Wrangler 部署需 Workers Scripts/KV 权限，授权状态和资源绑定在配置中；不提交账号凭证。通知原密钥保持仓库外，不更改通知服务部署。
