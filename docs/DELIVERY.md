@@ -1,5 +1,9 @@
 # LifeOS 3.0 交付记录
 
+## 2026-11-15：AI 来源标识的电脑交换兼容修复
+
+修复电脑 app.validate 将 source_id 当作本地记录 ID 校验，拒绝带冒号或超过100字的 AI 来源标识，导致本机交换整批失败的问题。source_id 按 AI 协议接受最多300字的不透明文字；本地记录/模块/操作 ID 校验不变，保留原值和稳定去重，不清理或重建数据。新增命名空间长来源交换/幂等重放/SQLite与操作日志回传/长度边界及本地ID严格校验回归。16项Python测试通过，运行中电脑服务更新前保存一致性备份，重启后六张原表摘要完全相同，integrity_check通过；前端、MCP和通知Worker无需重新部署。
+
 ## 2026-11-15：原生 Remote MCP
 
 新增独立 lifeos-mcp Worker：官方 OAuth Provider / PKCE / 刷新令牌、官方 MCP SDK Streamable HTTP、11 个严格参数工具、一次性设备配对、读/写/笔记独立权限、账号隔离、撤销和有界请求/速率。OAuth 状态使用 KV，有限投影/幂等命令/回执使用 SQLite Durable Object，不是新业务主数据库，未启用付费计划。

@@ -71,8 +71,10 @@ def validate(record):
             raise ValueError("文字字段无效或过长")
     if not r["title"].strip() or len(r["title"]) > 200:
         raise ValueError("标题不能为空，且最多 200 字")
-    if r["source_id"] and not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", r["source_id"]):
-        raise ValueError("原始记录编号无效")
+    # An external provenance key is opaque text, not a local record ID or path.
+    # Match the AI protocol, including namespaced IDs such as image:event:1.
+    if len(r["source_id"]) > 300:
+        raise ValueError("来源标识最多 300 字")
     r.setdefault("status", "todo" if r["type"] == "task" else "done")
     if r["status"] not in ("todo", "done"):
         raise ValueError("状态必须是 todo 或 done")

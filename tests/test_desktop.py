@@ -67,6 +67,23 @@ class DesktopAdapterTests(unittest.TestCase):
             self.assertEqual(row['body'], '桌面补充')
             self.assertEqual(sum(o['id']=='phone_op1' for o in ops), 1)
 
+    def test_external_ai_source_roundtrips_without_rewriting_ids(self):
+        self.create()
+        source = 'image:chat:event:' + 'x' * 280
+        op = {'id':'ai_source1','deviceId':'phone','sequence':1,'clock':20,'context':{},'entity':'records','recordId':'task1','patch':{'source_id':source},'timestamp':'2026-11-15T12:00:00Z','uploaded':0}
+        self.receive([op]); self.receive([op])
+        self.assertEqual(app.load()['records'][0]['source_id'], source)
+        self.assertEqual(app.load()['records'][0]['id'], 'task1')
+        with app.connect() as db:
+            rows = pocket_sync.operations(db)
+            self.assertEqual(sum(o['id'] == 'ai_source1' for o in rows), 1)
+            self.assertEqual(pocket_sync.materialize([o for o in rows if o['entity'] == 'records' and o['recordId'] == 'task1'])['source_id'], source)
+        self.assertEqual(app.validate({**self.record(), 'source_id':'x'*300})['source_id'], 'x'*300)
+        with self.assertRaises(ValueError):
+            app.validate({**self.record(), 'source_id':'x'*301})
+        with self.assertRaises(ValueError):
+            app.validate({**self.record(), 'id':'image:not-a-local-id'})
+
     def test_malformed_exchange_does_not_overwrite_sqlite(self):
         doc = self.create()
         op = {'id':'bad','deviceId':'phone','sequence':1,'clock':20,'context':{},'entity':'records','recordId':'task1','patch':{'date':'2026-99-99'},'timestamp':'2026-11-13T12:00:00Z','uploaded':0}

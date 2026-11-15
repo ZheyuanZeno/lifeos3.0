@@ -57,7 +57,7 @@
 - amount：非负十进制字符串，最多两位小数；未知为 null，不是零。金额已知时 currency 必填。
 - currency：币种，不混加、不自动换算。
 - time_label：原始时间说明，允许为空或“课后”等模糊描述。
-- source_id：关联原始记录编号，可为空。
+- source_id：来源标识，可为原始记录编号或 AI 外部来源（如 image:event:1）；可为空，最多 300 字，按原文保留用于去重，不作为本地记录 ID 或文件路径。
 - properties：属性编号到文字值的对象。数字和日期也以字符串存储，未知留空。
 - attachments：列表，每项是 {file: UUID格式相对文件名, name: 原始文件名}。
 - created_at、updated_at：带 UTC 时区的保存时间。
