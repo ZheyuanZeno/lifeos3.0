@@ -12,19 +12,25 @@ async function post(path,data,token){const r=await mf.dispatchFetch(origin+path,
 async function rpc(method,params,token){return post('/mcp',{jsonrpc:'2.0',id:1,method,params},token)}
 try{
  assert.equal((await rpc('tools/list',{},'')).status,401)
- const policy={from:'2026-11-15',to:'2026-12-15',time_zone:'Europe/Berlin',notes:false,modify:true}
+ const policy={from:'2026-11-15',to:'2026-12-15',time_zone:'Europe/Berlin',notes:true,modify:true}
  const enrolled=await post('/device/enroll',{device:'a'.repeat(32),policy},'google');assert.equal(enrolled.status,200,JSON.stringify(enrolled.data))
- const device=enrolled.data.token,pair=await post('/device/pair',{},device);assert.equal(pair.status,200)
+ const device=enrolled.data.token
  const register=await post('/oauth/register',{client_name:'Integration test',redirect_uris:['https://client.example/callback'],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'});assert.equal(register.status,201)
- const client=register.data.client_id,verifier=randomBytes(32).toString('base64url'),challenge=createHash('sha256').update(verifier).digest('base64url')
- const query=new URLSearchParams({client_id:client,redirect_uri:'https://client.example/callback',response_type:'code',scope:'lifeos:read lifeos:create lifeos:modify offline_access',state:'test-state',code_challenge:challenge,code_challenge_method:'S256',resource:origin+'/mcp'})
- const consent=await mf.dispatchFetch(origin+'/authorize?'+query),html=await consent.text();assert.equal(consent.status,200);const handle=html.match(/name="handle" value="([^"]+)"/)[1],cookie=consent.headers.get('set-cookie').split(';')[0]
- const approval=await mf.dispatchFetch(origin+'/authorize',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Origin:origin,Cookie:cookie},body:new URLSearchParams({handle,pair:device.split('.')[0]+'.'+pair.data.secret,decision:'approve',scope:'lifeos:read'}) .toString()+'&scope=lifeos:create&scope=lifeos:modify&scope=offline_access',redirect:'manual'})
- assert.equal(approval.status,302,await approval.clone().text());const code=new URL(approval.headers.get('Location')).searchParams.get('code')
- const exchange=await mf.dispatchFetch(origin+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'authorization_code',client_id:client,redirect_uri:'https://client.example/callback',code,code_verifier:verifier,resource:origin+'/mcp'})})
- assert.equal(exchange.status,200,await exchange.clone().text());const credentials=await exchange.json();assert.ok(credentials.refresh_token);const refreshed=await mf.dispatchFetch(origin+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',client_id:client,refresh_token:credentials.refresh_token,resource:origin+'/mcp'})});assert.equal(refreshed.status,200);const token=(await refreshed.json()).access_token
+ const client=register.data.client_id
+ async function authorize(scopes,requested=scopes){
+  const pair=await post('/device/pair',{},device);assert.equal(pair.status,200)
+  const verifier=randomBytes(32).toString('base64url'),challenge=createHash('sha256').update(verifier).digest('base64url')
+  const query=new URLSearchParams({client_id:client,redirect_uri:'https://client.example/callback',response_type:'code',scope:requested.join(' '),state:'test-state',code_challenge:challenge,code_challenge_method:'S256',resource:origin+'/mcp'})
+  const consent=await mf.dispatchFetch(origin+'/authorize?'+query),html=await consent.text();assert.equal(consent.status,200);assert.ok(html.includes('读取和管理随手记（含正文）'));const handle=html.match(/name="handle" value="([^"]+)"/)[1],cookie=consent.headers.get('set-cookie').split(';')[0]
+  const form=new URLSearchParams({handle,pair:device.split('.')[0]+'.'+pair.data.secret,decision:'approve'});for(const scope of scopes)form.append('scope',scope)
+  const approval=await mf.dispatchFetch(origin+'/authorize',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Origin:origin,Cookie:cookie},body:form,redirect:'manual'})
+  assert.equal(approval.status,302,await approval.clone().text());const code=new URL(approval.headers.get('Location')).searchParams.get('code')
+  const exchange=await mf.dispatchFetch(origin+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'authorization_code',client_id:client,redirect_uri:'https://client.example/callback',code,code_verifier:verifier,resource:origin+'/mcp'})})
+  assert.equal(exchange.status,200,await exchange.clone().text());return exchange.json()
+ }
+ const credentials=await authorize(['lifeos:read','lifeos:create','lifeos:modify','offline_access']);assert.ok(credentials.refresh_token);const refreshed=await mf.dispatchFetch(origin+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',client_id:client,refresh_token:credentials.refresh_token,resource:origin+'/mcp'})});assert.equal(refreshed.status,200);let token=(await refreshed.json()).access_token
  // MCP requires both supported response representations in Accept.
- async function call(method,params){const r=await mf.dispatchFetch(origin+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-11-25'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});return {status:r.status,data:await r.json()}}
+ async function call(method,params,accessToken=token){const r=await mf.dispatchFetch(origin+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-11-25'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});return {status:r.status,data:await r.json()}}
  const init=await call('initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'test',version:'1'}});assert.equal(init.status,200,JSON.stringify(init.data))
  const discovery=await call('tools/list',{});assert.equal(discovery.data.result.tools.length,11)
  const args={command_id:'test-create',data:{title:'截图识别后的会议（模拟）',date:'2026-11-18',source_id:'image:mock:1'}}
@@ -38,6 +44,12 @@ try{
  const conflict=await call('tools/call',{name:'lifeos_update_plan',arguments:{command_id:'stale',id:row.id,expected_version:'b'.repeat(64),data:{title:'Changed'}}});assert.equal(JSON.parse(conflict.data.result.content[0].text).status,'conflict')
  const update=await call('tools/call',{name:'lifeos_update_plan',arguments:{command_id:'update',id:row.id,expected_version:row.updated_version,data:{title:'Changed'}}});assert.equal(JSON.parse(update.data.result.content[0].text).status,'review')
  const notes=await call('tools/call',{name:'lifeos_list_notes',arguments:{from:policy.from,to:policy.to}});assert.equal(notes.data.result.isError,true)
+ assert.equal(JSON.parse(notes.data.result.content[0].text).required_scope,'lifeos:notes')
+ const permissions=JSON.parse((await call('tools/call',{name:'lifeos_get_status',arguments:{}})).data.result.content[0].text).permissions;assert.equal(permissions.notes,false);assert.equal(permissions.device_allows_notes,true);assert.equal(permissions.reconnect_required,true)
+ const note={...row,id:'note-1',type:'note',title:'Quick note',body:'Authorized note body'};assert.equal((await post('/device/projection',{rows:[row,note],sync:'manual'},device)).status,200)
+ const withNotes=await authorize(['lifeos:read','lifeos:create','lifeos:modify','lifeos:notes','offline_access'],['lifeos:read','lifeos:create','offline_access']);const readable=await call('tools/call',{name:'lifeos_list_notes',arguments:{from:policy.from,to:policy.to}},withNotes.access_token);assert.equal(readable.data.result.isError,false);assert.equal(JSON.parse(readable.data.result.content[0].text).items[0].body,note.body)
+ const oldGrant=await call('tools/call',{name:'lifeos_list_notes',arguments:{from:policy.from,to:policy.to}});assert.equal(oldGrant.status,401);token=withNotes.access_token
+ const hidden=await call('tools/call',{name:'lifeos_get_plan',arguments:{id:note.id}});assert.equal(JSON.parse(hidden.data.result.content[0].text).plan,null)
  const outside=await call('tools/call',{name:'lifeos_create_plan',arguments:{command_id:'outside',data:{...args.data,date:'2027-01-01'}}});assert.equal(outside.data.result.isError,true)
  const second=await post('/device/enroll',{device:'c'.repeat(32),policy},'google');await post('/device/projection',{rows:[row],sync:'manual'},second.data.token);const a=await post('/device/pending',{},device),b=await post('/device/pending',{},second.data.token);assert.equal(a.data.commands[0].command_id,b.data.commands[0].command_id);await post('/device/ack',{command_id:'update',status:'applied'},device);await post('/device/ack',{command_id:'update',status:'failed'},second.data.token);const converged=await call('tools/call',{name:'lifeos_get_command_status',arguments:{command_id:'update'}});assert.equal(JSON.parse(converged.data.result.content[0].text).command.status,'applied')
  const other=await post('/device/enroll',{device:'b'.repeat(32),policy},'other');assert.equal((await post('/device/pending',{},other.data.token)).data.commands.length,0)

@@ -19,6 +19,14 @@
 
 第二台设备也应绑定自己的设备凭证。修改授权日期或权限后需重新授权聊天客户端。点击“解除全部原生 AI 授权”撤销所有聊天客户端及设备，清除云端有限投影和命令队列；不会删除本地计划、笔记、历史或 Google Drive 操作日志。
 
+## 随手记显示“未授权”时
+
+“随手记”在工具中叫 note。LifeOS 的数据开放选项和聊天客户端 OAuth 授权是两个独立边界。只在应用勾选，不会修改已经签发给 Claude 的权限；Google Drive 手动同步也不会修改它。
+
+先在 LifeOS 勾选“允许 AI 读取和管理随手记（含正文）”，点击“绑定设备并生成配对码”保存；再在 Claude 重新授权 LifeOS（若无重新授权入口，可断开此连接器后重连）。在 LifeOS 的授权网页上明确勾选“读取和管理随手记（含正文）”对应 `lifeos:notes`；需要修改/完成时也勾选 `lifeos:modify`。保持 LifeOS 前台联网，约30秒内上传范围内的随手记投影。
+
+让聊天模型调用 `lifeos_get_status` 检查 `permissions.notes`：`true` 才代表此聊天连接实际获权，`device_allows_notes: true` 仅表示配对时设备允许开放。`reconnect_required: true` 表示配对允许范围大于此连接实际权限。`visible_records.notes` 是该连接当前可查询的随手记数量，仍受日期范围、所在设备数据、删除/归档状态限制。返回缺少权限时会给出 `missing_scope` / `required_scope` / 重新授权提示，不应建议用 Drive 同步解决。未保存的勾选在自动刷新状态时保留，并显示尚未保存提醒。
+
 ## 工具和协议
 
 |工具|用途|
@@ -107,7 +115,7 @@ OAuth KV 保存官方 Provider 的授权/令牌状态，SQLite Durable Object �
 |Pocket|`lifeos/pocket/src/native-ai.ts`、`main.ts`、`style.css`、`notifications/controller.ts`|
 |同源设备转发|`functions/api/mcp-device/[[path]].ts`、`lifeos/app.py`、`lifeos/notification_proxy.py`|
 |依赖与脚本|`package.json`、`package-lock.json`、`scripts/test-mcp.mjs`|
-|测试|`tests/mcp-contracts.test.ts`、`tests/e2e/native-ai.spec.ts`、`tests/e2e/ai-bridge.spec.ts`|
+|测试|`tests/mcp-contracts.test.ts`、`tests/e2e/native-ai.spec.ts`、`tests/e2e/native-notes.spec.ts`、`tests/e2e/ai-bridge.spec.ts`|
 |文档|`README.md`、`llms.txt`、`docs/REMOTE-MCP.md`、`ARCHITECTURE.md`、`AI-BRIDGE.md`、`CHATGPT-ACCESS.md`、`CLOUDFLARE.md`、`DELIVERY.md`|
 
 无需新建 Google Cloud OAuth 客户端、扩大 Google Drive 权限或配置新 Google 客户端密钥；复用原已启用的 Drive API 和公开客户端 ID进行首次账号证明。Cloudflare Wrangler 部署需 Workers Scripts/KV 权限，授权状态和资源绑定在配置中；不提交账号凭证。通知原密钥保持仓库外，不更改通知服务部署。
