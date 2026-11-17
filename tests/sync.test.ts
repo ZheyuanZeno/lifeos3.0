@@ -22,6 +22,12 @@ it('rescans immutable history after an expired change cursor without discarding 
 })
 async function note(db:PocketDatabase,title:string){return saveRecord({...recordDraft('module-pocket-notes','2026-11-14','note'),title,body:title+' 的正文'},db)}
 describe('independent incremental transport',()=>{
+ it('never reports a different transport as synced when channels overlap on one database',async()=>{
+  const db=database(),remote=new MemoryDrive();await initialize(db);await note(db,'渠道隔离')
+  const first=sync(db,remote.transport('first-channel'))
+  await expect(sync(db,remote.transport('second-channel'))).rejects.toThrow('另一个同步渠道')
+  await first;expect(await pendingCount(db,'first-channel')).toBe(0);expect(await pendingCount(db,'second-channel')).toBeGreaterThan(0)
+ })
  it('exchanges offline notes and time sessions between two devices without duplicates',async()=>{
   const a=database(),b=database(),remote=new MemoryDrive();await initialize(a);await initialize(b);const first=await note(a,'手机离线')
   const routine=await saveRoutine({title:'学习',icon:'',category:'课题',days:[0,1,2,3,4,5,6],minimumMinutes:null,targetMinutes:30,order:0,archived:false},a),session=await startSession('routine',routine.id,100000,a);await endSession(session.id,300000,a)

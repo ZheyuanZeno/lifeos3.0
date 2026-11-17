@@ -1,0 +1,7 @@
+{
+ "name":"lifeos-sync","main":"src/index.ts","compatibility_date":"2026-08-01",
+ "compatibility_flags":["nodejs_compat","global_fetch_strictly_public"],
+ "durable_objects":{"bindings":[{"name":"SPACES","class_name":"SyncSpace"},{"name":"LIMITER","class_name":"SyncLimiter"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["SyncSpace","SyncLimiter"]}],
+ "observability":{"enabled":false}
+}

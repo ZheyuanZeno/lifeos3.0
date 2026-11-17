@@ -1,5 +1,7 @@
 # Cloudflare Pages 托管
 
+2026-11-17 AutoSync 第一阶段新增独立 `lifeos-sync` Worker，版本 `05d0b897-9e9e-4f73-a758-74f8575ae6a9`，地址 https://lifeos-sync.lifeos-pocket.workers.dev 。Pages 更新为 `760d0565`，缓存 `lifeos-pocket-0e68ebd15ee8c8ba`，同源新增 `/api/sync/*`，原 MCP / 通知保持。未开通 R2 或付费计划；真实私人空间保持 staging，须完成首次迁移校验后切换。完整数据流、配对、归档及真实测试边界见 [AUTOSYNC-ARCHIVE.md](AUTOSYNC-ARCHIVE.md)。升级前发布及数据备份见 [PRE-AUTOSYNC-ROLLBACK.md](PRE-AUTOSYNC-ROLLBACK.md)。
+
 项目：lifeos-pocket
 生产分支标识：main
 固定入口：https://lifeos-pocket.pages.dev/pocket/

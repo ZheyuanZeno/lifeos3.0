@@ -34,3 +34,7 @@ __pycache__/
 release/
 
 .wrangler/
+*.vault
+bootstrap.txt
+/archive-config/
+/sync-config/

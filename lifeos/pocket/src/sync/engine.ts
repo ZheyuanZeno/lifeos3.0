@@ -4,9 +4,8 @@ import { iso,uuid,validateOperation,type Operation } from '../model'
 import { SyncError,MAX_BATCH_BYTES,type SyncTransport,type OperationBatch,type RemoteFile,type CloudBatch } from './types'
 import { syncAudio } from './media-sync'
 const encoder=new TextEncoder(),decoder=new TextDecoder('utf-8',{fatal:true})
-export const canonical=(value:unknown):string=>JSON.stringify(order(value))
-function order(value:unknown):unknown { if(Array.isArray(value))return value.map(order);if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,v])=>[k,order(v)]));return value }
-export async function digest(bytes:Uint8Array){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes as BufferSource))].map(x=>x.toString(16).padStart(2,'0')).join('')}
+export {canonical,digest} from './protocol'
+import {canonical,digest} from './protocol'
 function decodeBatch(bytes:Uint8Array,file:RemoteFile):OperationBatch {
   if(bytes.byteLength>MAX_BATCH_BYTES)throw new SyncError('云端操作批次过大，已停止合并','integrity')
   let value:OperationBatch;try{value=JSON.parse(decoder.decode(bytes))}catch{throw new SyncError('云端文件不是有效的操作批次','integrity')}
@@ -18,16 +17,22 @@ async function pendingOperations(db:PocketDatabase,accountId:string){
  return (await db.operations.toArray()).filter(o=>!acks.has(o.id)).sort((a,b)=>a.clock-b.clock||a.deviceId.localeCompare(b.deviceId)||a.sequence-b.sequence)
 }
 export async function pendingCount(db:PocketDatabase,accountId?:string){return accountId?(await pendingOperations(db,accountId)).length:db.operations.count()}
-const running=new WeakMap<PocketDatabase,Promise<void>>()
+const running=new WeakMap<PocketDatabase,{accountId:string;task:Promise<void>}>()
 const crossTabLocks=new Map<string,Promise<void>>()
 export function sync(db:PocketDatabase,transport:SyncTransport):Promise<void>{
- const current=running.get(db);if(current)return current
- const task=withCrossTabLock(db.name,()=>run(db,transport)).finally(()=>running.delete(db));running.set(db,task);return task
+ const current=running.get(db);if(current)return current.accountId===transport.accountId?current.task:Promise.reject(new SyncError('另一个同步渠道正在运行，请稍后重试','busy'))
+ const task=withCrossTabLock(db,()=>run(db,transport)).finally(()=>running.delete(db));running.set(db,{accountId:transport.accountId,task});return task
 }
-async function withCrossTabLock(name:string,fn:()=>Promise<void>){
+async function withCrossTabLock(db:PocketDatabase,fn:()=>Promise<void>){
+ const name=db.name
  if(typeof navigator!=='undefined'&&navigator.locks)return navigator.locks.request('lifeos-drive-'+name,{mode:'exclusive',ifAvailable:true},lock=>{if(!lock)throw new SyncError('另一个窗口正在同步，请稍后重试','busy');return fn()})
  const prior=crossTabLocks.get(name);if(prior)throw new SyncError('另一个窗口正在同步，请稍后重试','busy')
- const task=fn().finally(()=>crossTabLocks.delete(name));crossTabLocks.set(name,task);return task
+ // IndexedDB transactions serialize the lease even when Web Locks is unavailable.
+ const key='sync-cross-tab-lease',owner=uuid(),duration=120000
+ const acquire=()=>db.transaction('rw',db.local,async()=>{const lease=(await db.local.get(key))?.value as {owner:string;until:number}|undefined;if(lease&&lease.owner!==owner&&lease.until>Date.now())throw new SyncError('另一个窗口正在同步，请稍后重试','busy');await db.local.put({key,value:{owner,until:Date.now()+duration}})})
+ await acquire()
+ const renewal=setInterval(()=>void acquire().catch(()=>{}),30000)
+ const task=fn().finally(async()=>{clearInterval(renewal);await db.transaction('rw',db.local,async()=>{const lease=(await db.local.get(key))?.value as {owner:string}|undefined;if(lease?.owner===owner)await db.local.delete(key)});crossTabLocks.delete(name)});crossTabLocks.set(name,task);return task
 }
 async function pull(db:PocketDatabase,transport:SyncTransport,forceFull=false){
  const accountId=transport.accountId,state=await db.cloudState.get(accountId),initial=forceFull||!state?.cursor
@@ -89,7 +94,8 @@ async function push(db:PocketDatabase,transport:SyncTransport){
 async function run(db:PocketDatabase,transport:SyncTransport){
  try{
   try{await pull(db,transport)}catch(error){if(!(error instanceof SyncError)||error.code!=='cursor')throw error;await pull(db,transport,true)}
-  await syncAudio(db,transport);await push(db,transport);await db.cloudState.update(transport.accountId,{lastSuccessAt:iso(),lastError:undefined})
+  if(transport.syncMedia)await transport.syncMedia(db);else await syncAudio(db,transport)
+  await push(db,transport);await db.cloudState.update(transport.accountId,{lastSuccessAt:iso(),lastError:undefined})
  }
  catch(error){await db.cloudState.put({...await db.cloudState.get(transport.accountId),key:transport.accountId,accountId:transport.accountId,lastError:error instanceof Error?error.message:'同步失败'});throw error}
 }

@@ -1,0 +1,15 @@
+[Unit]
+Description=LifeOS ordinary Sync Hub client (Ubuntu)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace the two absolute paths for this Ubuntu user; set primary:false in config.
+ExecStart=/home/USER/.local/share/lifeos/venv/bin/python /home/USER/src/lifeos3.0/lifeos/archive_agent.py --config /home/USER/.config/lifeos/client.json
+Restart=on-failure
+RestartSec=15
+UMask=0077
+
+[Install]
+WantedBy=default.target

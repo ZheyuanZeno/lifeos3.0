@@ -2,6 +2,9 @@ import type { PocketDatabase } from './database'
 import { uuid,iso,type LifeRecord } from './model'
 export const MAX_AUDIO_BYTES=4*1024*1024
 export const audioFile=/^[a-f0-9]{32}\.(?:m4a|mp4|webm|ogg|wav)$/
+export const mediaFile=/^[a-f0-9]{32}\.(?:png|jpg|jpeg|webp|gif|pdf|txt|m4a|mp4|webm|ogg|wav)$/
+export const MAX_MEDIA_BYTES=32*1024*1024
+export const fileMime=(file:string)=>audioFile.test(file)?audioMime(file):({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',pdf:'application/pdf',txt:'text/plain'}[file.split('.').at(-1)!]??'application/octet-stream')
 export interface MediaAsset {file:string;bytes:ArrayBuffer;mime:string;sha256:string;size:number;createdAt:string}
 export interface RemoteMedia {key:string;accountId:string;file:string;fileId:string;sha256:string;confirmed:boolean}
 export const audioMime=(file:string)=>file.endsWith('.webm')?'audio/webm':file.endsWith('.ogg')?'audio/ogg':file.endsWith('.wav')?'audio/wav':'audio/mp4'
@@ -20,7 +23,7 @@ export async function serializeMedia(asset:MediaAsset){
 }
 export async function deserializeMedia(value:unknown):Promise<MediaAsset>{
  const v=value as Awaited<ReturnType<typeof serializeMedia>>
- if(!v||!audioFile.test(v.file)||v.mime!==audioMime(v.file)||!Number.isSafeInteger(v.size)||v.size<1||v.size>MAX_AUDIO_BYTES||typeof v.data!=='string'||v.data.length>Math.ceil(MAX_AUDIO_BYTES/3)*4||typeof v.createdAt!=='string'||!Number.isFinite(Date.parse(v.createdAt)))throw Error('备份录音格式无效')
+ if(!v||!mediaFile.test(v.file)||v.mime!==fileMime(v.file)||!Number.isSafeInteger(v.size)||v.size<1||v.size>MAX_MEDIA_BYTES||typeof v.data!=='string'||v.data.length>Math.ceil(MAX_MEDIA_BYTES/3)*4||typeof v.createdAt!=='string'||!Number.isFinite(Date.parse(v.createdAt)))throw Error('备份媒体格式无效')
  const bytes=Uint8Array.from(atob(v.data),c=>c.charCodeAt(0))
  if(bytes.length!==v.size||await mediaDigest(bytes)!==v.sha256)throw Error('备份录音完整性校验失败')
  return {file:v.file,mime:v.mime,sha256:v.sha256,size:v.size,createdAt:v.createdAt,bytes:bytes.buffer}

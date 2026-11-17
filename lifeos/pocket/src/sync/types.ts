@@ -15,9 +15,10 @@ export interface SyncTransport {
   createFile(id:string,bytes:Uint8Array,batchId:string,digest:string):Promise<void>
   findAudio?(file:string):Promise<RemoteAudio|null>
   createAudio?(id:string,bytes:Uint8Array,file:string,mime:string,sha256:string):Promise<void>
+  syncMedia?(db:import('../database').PocketDatabase):Promise<void>
 }
 export interface CloudAck { key:string; accountId:string; operationId:string }
 export interface CloudFile { key:string; accountId:string; fileId:string; digest:string; version:string }
 export interface CloudBatch { key:string; accountId:string; fileId:string; batchId:string; digest:string; body:string; operationIds:string[]; status:'pending'|'confirmed' }
-export interface CloudState { key:string; accountId:string; cursor?:string; lastSuccessAt?:string; lastError?:string }
+export interface CloudState { key:string; accountId:string; cursor?:string; mediaCursor?:string; acknowledgedCursor?:string; lastSuccessAt?:string; lastError?:string }
 export class SyncError extends Error { constructor(message:string,public code:'auth'|'network'|'integrity'|'permission'|'remote-missing'|'cursor'|'busy'|'quota'='network'){super(message);this.name='SyncError'} }

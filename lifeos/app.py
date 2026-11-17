@@ -22,6 +22,8 @@ import zipfile
 import pocket_sync
 import background_flow
 import notification_proxy
+import sync_proxy
+from data_lock import data_lock
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -233,6 +235,7 @@ class ClosingConnection(sqlite3.Connection):
 def connect():
     db = sqlite3.connect(DATA / "lifeos.sqlite", factory=ClosingConnection)
     db.execute("PRAGMA foreign_keys=ON")
+    db.execute("PRAGMA synchronous=FULL")
     db.execute("CREATE TABLE IF NOT EXISTS modules (id TEXT PRIMARY KEY, position INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, archived INTEGER NOT NULL, payload TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, module_id TEXT NOT NULL REFERENCES modules(id), position INTEGER NOT NULL, date TEXT NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, deleted INTEGER NOT NULL, payload TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
@@ -314,8 +317,7 @@ def save(doc, backup=True, remote=None):
     if backup and previous["updated_at"]:
         stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         atomic(DATA / "backups" / (stamp + ".json"), encode(previous))
-        for file in sorted((DATA / "backups").glob("[0-9]*.json"))[:-30]:
-            file.unlink()
+        # Phase 1 retains all historical backups; no automatic pruning.
     doc["updated_at"] = now()
     # Modules and their complete records commit as one transaction.
     with connect() as db:
@@ -519,10 +521,14 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith('/api/notify/'):
             return self.notification_request()
         try:
-            with LOCK:
+            with LOCK, data_lock(DATA):
                 if path == "/api/state":
                     doc = load()
                     return self.reply({**doc, "token": TOKEN, "data_path": str(DATA), "can_undo": bool(list((DATA / "backups").glob("[0-9]*.json")))})
+                if path == '/api/archive/status':
+                    connection = DATA / 'sync-archive' / 'connection.json'
+                    status = DATA / 'sync-archive' / 'status.json'
+                    return self.reply({'connection': json.loads(connection.read_text('utf-8')) if connection.exists() else None, 'archive': json.loads(status.read_text('utf-8')) if status.exists() else None})
                 if path == "/api/search":
                     query = parse_qs(urlparse(self.path).query).get("q", [""])[0]
                     with sqlite3.connect(DATA / "lifeos.sqlite", factory=ClosingConnection) as db:
@@ -574,6 +580,18 @@ class Handler(BaseHTTPRequestHandler):
             self.reply({"error": str(e)}, 400)
 
     def do_POST(self):
+        if urlparse(self.path).path.startswith('/api/sync/'):
+            origin = self.headers.get('Origin')
+            if not self.safe_host() or origin and origin not in (f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}'):
+                return self.reply({'error': '不允许跨站同步'}, 403)
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 2 * 1024 * 1024:
+                    return self.reply({'error': '同步请求过大或为空'}, 413)
+                result, status = sync_proxy.relay(urlparse(self.path).path.removeprefix('/api/sync/'), self.headers, self.rfile.read(length))
+                return self.reply(result, status)
+            except (ValueError, OSError):
+                return self.reply({'error': '同步请求无效'}, 400)
         if urlparse(self.path).path.startswith(('/api/notify/', '/api/mcp-device/')):
             return self.notification_request()
         if not self.safe_host() or self.headers.get("X-LifeOS-Token") != TOKEN:
@@ -593,7 +611,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('录音文件名无效或超过 4MB')
                 if len(raw) != length:
                     raise ValueError('录音上传不完整')
-                with LOCK:
+                with LOCK, data_lock(DATA):
                     target = DATA / 'attachments' / name
                     if target.exists() and target.read_bytes() != raw:
                         raise ValueError('录音编号冲突，已有内容未覆盖')
@@ -603,7 +621,23 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("请求格式无效")
-            with LOCK:
+            if urlparse(self.path).path == '/api/archive/approve':
+                import subprocess
+                connection = json.loads((DATA / 'sync-archive' / 'connection.json').read_text('utf-8'))
+                config = json.loads(Path(connection['config_file']).read_text('utf-8'))
+                if payload.get('spaceId') != connection['space_id']:
+                    raise ValueError('配对属于另一个同步空间')
+                raw = json.dumps(payload)
+                if len(raw) > 4096:
+                    raise ValueError('配对信息过大')
+                try:
+                    result = subprocess.run([config['python'], str(ROOT / 'archive_agent.py'), '--config', connection['config_file'], '--approve-stdin'], input=raw, text=True, capture_output=True, timeout=40, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                except subprocess.TimeoutExpired:
+                    raise ValueError('批准请求超时，可重试') from None
+                if result.returncode:
+                    raise ValueError('配对未批准；检查有效期、指纹和归档服务连接')
+                return self.reply({'approved': True})
+            with LOCK, data_lock(DATA):
                 doc = load()
                 path = urlparse(self.path).path
                 if path == "/api/pocket/exchange":
@@ -750,7 +784,8 @@ def main():
     except OSError:
         server.server_close()
         raise SystemExit("此资料库已经在另一个 LifeOS 程序中打开")
-    initialize()
+    with data_lock(DATA):
+        initialize()
     url = f"http://127.0.0.1:{server.server_port}"
     print(f"LifeOS 已启动：{url}\n资料目录：{DATA}\n关闭此终端或按 Ctrl+C 停止。", flush=True)
     if not args.no_browser:

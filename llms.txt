@@ -1,8 +1,10 @@
 # LifeOS 3.0
 
-> Offline-first personal life management: Python/SQLite desktop whiteboard, TypeScript/Dexie Pocket PWA, manual Google Drive synchronization, and Cloudflare Web Push reminders. Product version 3.0.0; latest documentation is on main.
+> Offline-first personal life management: Python/SQLite desktop whiteboard, TypeScript/Dexie Pocket PWA, signed-device AutoSync after verified migration, independent Windows archive, manual Google Drive fallback, and Cloudflare Web Push reminders. Latest documentation is on main.
 
 ## Documentation
+- [AutoSync and Desktop Archive](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/AUTOSYNC-ARCHIVE.md): independent signed-device sync, retained full history/media, Windows primary archive, migration gate, free resource limits and real-device acceptance boundaries.
+- [Pre-upgrade rollback](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/PRE-AUTOSYNC-ROLLBACK.md): immutable previous release tag and safe code/data recovery.
 - [Full business AI access](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/FULL-AI-ACCESS.md): opt-in all-date content CRUD, ideas, routines, history, timers and original recording bytes; queue application, version checks and client acceptance limits.
 - [Native Remote MCP](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/REMOTE-MCP.md): OAuth connector, limited live projections, queued commands, foreground application, permissions, opt-in read-only daily timing history, Claude setup and honest real-client acceptance boundaries.
 - [AI Docs Bridge](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/AI-BRIDGE.md): private Inbox/Context, command protocol, manual review, OAuth setup and a reusable ChatGPT prompt; real-account acceptance is separate from mocks.
@@ -14,4 +16,4 @@
 - [Parallel timers](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/MULTI-TIMER.md): simultaneous routine and plan timers, independent controls, overlap statistics and legacy workflow compatibility.
 
 ## Important boundaries
-The repository contains source code, not personal LifeOS records or credentials. Google Drive sync is manual; notification metadata updates are separate. Reading this repository does not grant access to user data or a write integration. This file is a documentation index, not an automatic permission or discovery mechanism.
+The repository contains source code, not personal LifeOS records or credentials. Google Drive remains manual. Cloudflare AutoSync becomes the default only after verified migration; notification metadata updates remain separate. Reading this repository does not grant access to user data or a write integration. This file is a documentation index, not an automatic permission or discovery mechanism.

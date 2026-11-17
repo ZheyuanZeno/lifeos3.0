@@ -13,7 +13,9 @@
     "typecheck:notify": "tsc --noEmit -p workers/notify/tsconfig.json && tsc --noEmit -p functions/tsconfig.json",
     "test:notify": "node scripts/test-notifications.mjs",
     "typecheck:mcp": "tsc --noEmit -p workers/mcp/tsconfig.json",
-    "test:mcp": "node scripts/test-mcp.mjs"
+    "test:mcp": "node scripts/test-mcp.mjs",
+    "typecheck:sync": "tsc --noEmit -p workers/sync/tsconfig.json",
+    "test:sync": "node scripts/test-sync-worker.mjs"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^1.2.4",

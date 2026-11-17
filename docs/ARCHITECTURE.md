@@ -4,6 +4,8 @@
 
 ## 程序边界
 
+第一阶段升级新增独立 `workers/sync`、`sync/cloudflare.ts`、`auto-controller.ts` 及 `lifeos/archive_agent.py`。原数据库名、业务 repository、因果合并、并行计时、Drive 手动备用、通知和 MCP 均保留；新同步只在当前空间通过双 PWA 与电脑归档校验后成为默认。完整协议、归档写入顺序、身份、额度及实际验收边界见 [AUTOSYNC-ARCHIVE.md](AUTOSYNC-ARCHIVE.md)。升级前标签与私有备份见 [PRE-AUTOSYNC-ROLLBACK.md](PRE-AUTOSYNC-ROLLBACK.md)。
+
 - `lifeos/app.py`：标准库 HTTP 服务、SQLite 原电脑白板、Pocket 静态入口与本机交换。
 - `lifeos/pocket_sync.py`：SQLite 操作日志及兼容的因果合并。
 - `lifeos/pocket/src/`：Vanilla TypeScript + Dexie 的离线 PWA，沿用原项目，不引入 React 或第二套业务数据模型。
