@@ -23,9 +23,9 @@ test('pairs nonexportable device keys and automatically exchanges offline notes 
  }
  async function pair(p:Page,label:string){
   await p.goto('/pocket/#settings');await expect(p.locator('#sync-pair')).toBeVisible();await p.getByLabel('同步空间编号').fill(space);await p.getByLabel('本设备名称').fill(label);await p.getByRole('button',{name:'申请设备配对',exact:true}).click()
-  const code=p.getByLabel('将以下信息交给已绑定的电脑或管理设备');await expect(code).toBeVisible();const info=JSON.parse(await code.inputValue());await rpc('pair/approve',{...info,role:'member'});await p.getByRole('button',{name:'已在电脑批准，完成绑定',exact:true}).click();await expect(p.locator('#auto-sync')).toContainText('迁移校验中')
+  const code=p.getByLabel('将以下信息交给已绑定的电脑或管理设备');await expect(code).toBeVisible();const info=JSON.parse(await code.inputValue());await rpc('pair/approve',{...info,role:'member'});await p.getByRole('button',{name:'已在电脑批准，完成绑定',exact:true}).click();await expect(p.locator('#auto-sync')).toContainText('设备已连接')
  }
- async function verify(p:Page){await p.locator('#sync-source-confirm').check();const download=p.waitForEvent('download');await p.getByRole('button',{name:'下载备份并校验本机',exact:true}).click();await download;await expect(p.locator('#auto-sync')).toContainText('本机清单已核验')}
+ async function verify(p:Page){await p.locator('#sync-source-confirm').check();await p.getByRole('button',{name:/开启自动同步|继续开启同步|重新检查/}).click();const next=p.getByRole('button',{name:'备份已保存，继续',exact:true});await expect.poll(async()=>await next.isVisible()||await p.locator('#auto-migration-status').textContent()==='本机已准备好。请在另一台手机也开启自动同步；电脑备份完成后会自动启用。').toBe(true);if(await next.isVisible())await next.click();await expect(p.locator('#auto-sync')).toContainText('本机已准备好')}
  async function note(p:Page,title:string){await p.getByRole('link',{name:'随手记',exact:true}).click();await p.getByLabel('此刻的想法').fill(title);await p.getByRole('button',{name:'保存随手记',exact:true}).click();await expect(p.locator('#notice')).toContainText('已保存在本地')}
  try{
   await rpc('create',{bootstrap,public_key:await webcrypto.subtle.exportKey('jwk',key.publicKey),recovery_hash:sha('fixture recovery only'),kind:'archive'})
@@ -39,7 +39,6 @@ test('pairs nonexportable device keys and automatically exchanges offline notes 
   const operations=[{id:'legacy-module-op',deviceId:'legacy-fixture',sequence:1,clock:1,context:{},entity:'modules',recordId:'legacy-module',patch:module,timestamp:stamp,uploaded:0},{id:'legacy-note-op',deviceId:'legacy-fixture',sequence:2,clock:2,context:{'legacy-fixture':1},entity:'records',recordId:'legacy-note',patch:row,timestamp:stamp,uploaded:0}]
   expect((await request.post('/api/pocket/exchange',{headers:{'X-LifeOS-Token':desktop.token},data:{protocol:1,operations}})).ok()).toBe(true)
   await pair(page,'Fixture first');await pair(second,'Fixture second')
-  await page.locator('#auto-sync details').evaluate((e:HTMLDetailsElement)=>e.open=true);await second.locator('#auto-sync details').evaluate((e:HTMLDetailsElement)=>e.open=true)
   await verify(page);await verify(second);await verify(page)
   expect((await rpc('media/status',{file:audioFile})).sha).toBe(sha(audioBytes.toString()))
   expect((await rpc('media/status',{file:pdf.file})).sha).toBe(sha(pdfBytes.toString()))
@@ -48,7 +47,7 @@ test('pairs nonexportable device keys and automatically exchanges offline notes 
   // Controlled protocol fixture only; physical archive/fsync is tested by the Python workerd harness.
   const proof=sha(canonical(events.items.map((c:any)=>({seq:c.seq,kind:c.kind,id:c.id,digest:c.digest??c.sha}))))
   await rpc('archive/ack',{archive_id,storage_id,cursor:status.head,manifest:proof});await rpc('activate')
-  for(const p of [page,second]){await p.getByRole('button',{name:'刷新状态',exact:true}).click();await expect(p.locator('#auto-sync')).toContainText('已启用')}
+  for(const p of [page,second]){await p.locator('#auto-sync-details').evaluate((e:HTMLDetailsElement)=>e.open=true);await p.getByRole('button',{name:'刷新状态',exact:true}).click();await expect(p.locator('#auto-sync')).toContainText('已开启')}
   await note(page,'Automatic fixture note');await expect.poll(async()=>(await rpc('status')).head).toBeGreaterThan(status.head)
   await second.evaluate(()=>window.dispatchEvent(new Event('online')));await second.getByRole('link',{name:'随手记',exact:true}).click();await expect(second.getByText('Automatic fixture note',{exact:true})).toBeVisible()
   await other.setOffline(true);await note(second,'Offline fixture note');await second.reload();await expect(second.getByText('Offline fixture note',{exact:true})).toBeVisible();await other.setOffline(false)

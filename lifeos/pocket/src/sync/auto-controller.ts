@@ -6,7 +6,8 @@ import {canonical,digest} from './protocol'
 import {exportBackup} from '../repository'
 import {SyncError} from './types'
 
-export interface AutoSyncState {bound:boolean;active:boolean;working:boolean;pending:number;lastSuccessAt?:string;error:string;cloud?:SyncStatus}
+export interface MigrationProgress {stage:'backup'|'prepare'|'sync'|'verify'|'complete'|'failed'|'interrupted'|'waiting';message:string;error?:string;backup?:'requested'|'reused';consented:boolean}
+export interface AutoSyncState {bound:boolean;active:boolean;working:boolean;pending:number;lastSuccessAt?:string;error:string;cloud?:SyncStatus;migration?:MigrationProgress}
 const CONFIG='auto-sync-v1'
 export class AutoSyncController {
  state:AutoSyncState={bound:false,active:false,working:false,pending:0,error:''}
@@ -17,13 +18,17 @@ export class AutoSyncController {
  private dirty=false
  private failures=0
  private disposed=false
- private wake=()=>{if(!document.hidden&&navigator.onLine)this.schedule(0)}
+ private wizardTimer?:ReturnType<typeof setInterval>
+ private wizardIntent=false
+ private migrating=false
+ private wake=()=>{if(!document.hidden&&navigator.onLine){if(this.wizardIntent&&!this.state.active)void this.resumeWizard();else this.schedule(0)}}
  constructor(private db:PocketDatabase,private changed:()=>void,private makeTransport=(i:SyncIdentity)=>new CloudflareSyncTransport(i)){}
  async init(){
   const identity=(await this.db.local.get('sync-identity-v1'))?.value as SyncIdentity|undefined
-  if(identity){this.transport=this.makeTransport(identity);this.state.bound=true;const config=(await this.db.local.get(CONFIG))?.value as {active?:boolean}|undefined;this.state.active=config?.active===true;this.state.lastSuccessAt=(await this.db.cloudState.get(this.transport.accountId))?.lastSuccessAt;await this.refreshPending()}
+  if(identity){this.transport=this.makeTransport(identity);this.state.bound=true;const config=(await this.db.local.get(CONFIG))?.value as {active?:boolean}|undefined;this.state.active=config?.active===true;this.state.lastSuccessAt=(await this.db.cloudState.get(this.transport.accountId))?.lastSuccessAt;if(!this.state.active&&(await this.db.local.get(this.backupKey()))?.value)this.state.migration={stage:'interrupted',message:'备份已确认保存，点击继续开启同步。',backup:'reused',consented:true};await this.refreshPending()}
   window.addEventListener('online',this.wake);document.addEventListener('visibilitychange',this.wake);window.addEventListener('pageshow',this.wake)
   this.poll=setInterval(()=>{if(!document.hidden&&!this.timer)this.schedule(0)},45000)
+  if(this.transport&&(await this.db.local.get('sync-wizard/'+this.transport.accountId))?.value===true){this.wizardIntent=true;this.startWizardPolling();void this.resumeWizard()}
   if(this.state.active)this.schedule(0);else if(this.transport&&navigator.onLine)void this.refreshStatus().catch(()=>{})
  }
  private emit(){if(!this.disposed)this.changed()}
@@ -62,19 +67,45 @@ export class AutoSyncController {
   const identity=await newSyncIdentity(spaceId,label),transport=this.makeTransport(identity)
   await transport.request('recover',{recovery,public_key:identity.publicKey,label});await saveSyncIdentity(this.db,identity);this.transport=transport;this.state.bound=true;await this.refreshStatus()
  }
- async verifyMigration(sourceConfirmed:boolean,persistBackup:(backup:Awaited<ReturnType<typeof exportBackup>>,stage?:'before'|'verified')=>Promise<void>){
+ private backupKey(){return 'sync-migration-backup/'+this.transport!.accountId}
+ private progress(stage:MigrationProgress['stage'],message:string){this.state.migration={...this.state.migration,stage,message,error:undefined,consented:true};this.emit()}
+ private async migrationBackup(backup:Awaited<ReturnType<typeof exportBackup>>,stage:'before'|'verified',persistBackup:(backup:Awaited<ReturnType<typeof exportBackup>>,stage?:'before'|'verified')=>Promise<void>,reuseSource=false){
+  const contentDigest=await digest(new TextEncoder().encode(canonical({...backup,exportedAt:''}))),saved=(await this.db.local.get(this.backupKey()))?.value as {contentDigest:string;digest:string;exportedAt:string}|undefined
+  if(saved&&(reuseSource||saved.contentDigest===contentDigest)&&/^[a-f0-9]{64}$/.test(saved.digest)&&typeof saved.exportedAt==='string'){
+   this.state.migration={...this.state.migration!,backup:'reused'};this.emit();return {backup:{...backup,exportedAt:saved.exportedAt},digest:saved.digest}
+  }
+  const hash=await digest(new TextEncoder().encode(canonical(backup)))
+  await persistBackup(backup,stage)
+  await this.db.local.put({key:this.backupKey(),value:{contentDigest,digest:hash,exportedAt:backup.exportedAt}})
+  this.state.migration={...this.state.migration!,backup:'requested'};this.emit();return {backup,digest:hash}
+ }
+ async verifyMigration(sourceConfirmed:boolean,persistBackup:(backup:Awaited<ReturnType<typeof exportBackup>>,stage?:'before'|'verified')=>Promise<void>,automatic=false){
   if(!this.transport||!sourceConfirmed)throw Error('请先确认已完成最后一次旧渠道同步，并允许补传历史和媒体')
-  const before=await exportBackup(this.db),beforeDigest=await digest(new TextEncoder().encode(canonical(before)))
-  await persistBackup(before,'before')
-  await this.transport.request('migration/prepare',{source_confirmed:true,backup_digest:beforeDigest})
-  await this.syncNow()
-  const backup=await exportBackup(this.db),backupDigest=await digest(new TextEncoder().encode(canonical(backup))),manifest=await this.transport.localManifest(this.db),cloud=await this.transport.status()
-  if(canonical(manifest)!==canonical(cloud.manifest))throw Error('本机与云端完整历史清单不一致，不能正式切换')
-  const changed=canonical({...before,exportedAt:''})!==canonical({...backup,exportedAt:''})
-  if(changed)await persistBackup(backup,'verified')
-  const verifiedDigest=changed?backupDigest:beforeDigest
-  await this.transport.request('migration/verify',{head:cloud.head,manifest,backup_digest:verifiedDigest,source_confirmed:true});await this.refreshStatus()
-  return {backup:changed?backup:before,backupDigest:verifiedDigest}
+  if(this.migrating)return
+  this.migrating=true
+  this.state.error=''
+  try{
+   this.progress('backup','1/4 正在生成本机备份…')
+   const before=await this.migrationBackup(await exportBackup(this.db),'before',persistBackup,automatic)
+   if(automatic){await this.db.local.put({key:'sync-wizard/'+this.transport.accountId,value:true});this.wizardIntent=true;this.startWizardPolling()}
+   this.progress('prepare','2/4 正在连接同步中心，申请补传…')
+   await this.transport.request('migration/prepare',{source_confirmed:true,backup_digest:before.digest,...(automatic?{auto_activate:true}:{})})
+   this.progress('sync','3/4 正在补传本机文件、读取其他设备的资料…')
+   await this.syncNow()
+   this.progress('verify','4/4 正在校验完整清单…')
+   const backup=await exportBackup(this.db),manifest=await this.transport.localManifest(this.db),cloud=await this.transport.status()
+   if(canonical(manifest)!==canonical(cloud.manifest))throw Error('本机与云端完整历史清单不一致，不能正式切换')
+   const verified=automatic?before:await this.migrationBackup(backup,'verified',persistBackup)
+   await this.transport.request('migration/verify',{head:cloud.head,manifest,backup_digest:verified.digest,source_confirmed:true});await this.refreshStatus()
+   this.progress(automatic?'waiting':'complete',automatic?'本机已准备好。请在另一台手机也开启自动同步；电脑备份完成后会自动启用。':'本机清单已核验。下一步：另一台设备也完成迁移，电脑归档齐全后再正式切换。')
+   return {backup:verified.backup,backupDigest:verified.digest}
+  }catch(e){const reason=e instanceof Error?e.message:'迁移失败',step=this.state.migration?.message??'迁移';this.state.error=reason;const waiting=automatic&&e instanceof SyncError&&['remote-missing','network','busy'].includes(e.code);this.state.migration={...this.state.migration!,stage:waiting?'waiting':'failed',message:waiting?(e instanceof SyncError&&e.code==='remote-missing'?'还在等旧录音或附件。请在原设备也开启同步，原件到达后会自动继续。':'连接暂时未完成，保持 LifeOS 打开，稍后会自动重试。'):'迁移已暂停：'+step.replace(/…$/,''),error:reason};this.emit();throw e}
+  finally{this.migrating=false}
+ }
+ private startWizardPolling(){if(!this.wizardTimer)this.wizardTimer=setInterval(()=>void this.resumeWizard(),15000)}
+ private async resumeWizard(){
+  if(this.disposed||this.migrating||!this.transport||!this.wizardIntent||!navigator.onLine||document.hidden)return
+  try{await this.refreshStatus();if(this.state.active){if(this.wizardTimer)clearInterval(this.wizardTimer);this.wizardTimer=undefined;this.progress('complete','自动同步已开启，以后正常记录即可。');return}await this.verifyMigration(true,async()=>{throw Error('请先保存本机备份')},true)}catch{}
  }
  async activate(){if(!this.transport)throw Error('请先绑定');await this.transport.request('activate');await this.refreshStatus();this.schedule(0)}
  async disconnect(){
@@ -82,8 +113,9 @@ export class AutoSyncController {
   if(!this.transport)return
   try{await this.transport.request('device/revoke',{device_id:this.transport.identity.deviceId})}catch(e){if(!(e instanceof SyncError)||e.code!=='auth')throw e}
   if(this.timer)clearTimeout(this.timer)
-  await this.db.transaction('rw',this.db.local,async()=>{await this.db.local.bulkDelete(['sync-identity-v1',CONFIG,'sync-pair-v1'])})
+  await this.db.transaction('rw',this.db.local,async()=>{await this.db.local.bulkDelete(['sync-identity-v1',CONFIG,'sync-pair-v1','sync-wizard/'+this.transport!.accountId])})
+  this.wizardIntent=false;if(this.wizardTimer)clearInterval(this.wizardTimer);this.wizardTimer=undefined
   this.transport=undefined;this.state={bound:false,active:false,working:false,pending:0,error:''};this.emit()
  }
- dispose(){this.disposed=true;if(this.timer)clearTimeout(this.timer);if(this.poll)clearInterval(this.poll);window.removeEventListener('online',this.wake);document.removeEventListener('visibilitychange',this.wake);window.removeEventListener('pageshow',this.wake)}
+ dispose(){this.disposed=true;if(this.timer)clearTimeout(this.timer);if(this.poll)clearInterval(this.poll);if(this.wizardTimer)clearInterval(this.wizardTimer);window.removeEventListener('online',this.wake);document.removeEventListener('visibilitychange',this.wake);window.removeEventListener('pageshow',this.wake)}
 }

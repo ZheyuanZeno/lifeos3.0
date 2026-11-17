@@ -4,6 +4,7 @@
 
 ## Documentation
 - [AutoSync and Desktop Archive](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/AUTOSYNC-ARCHIVE.md): independent signed-device sync, retained full history/media, Windows primary archive, migration gate, free resource limits and real-device acceptance boundaries.
+- [Simple sync setup](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/SYNC-SETUP.md): one confirmed source backup per paired phone, automatic contribution/checking/full desktop backup/activation and missing-original troubleshooting.
 - [Pre-upgrade rollback](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/PRE-AUTOSYNC-ROLLBACK.md): immutable previous release tag and safe code/data recovery.
 - [Full business AI access](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/FULL-AI-ACCESS.md): opt-in all-date content CRUD, ideas, routines, history, timers and original recording bytes; queue application, version checks and client acceptance limits.
 - [Native Remote MCP](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/REMOTE-MCP.md): OAuth connector, limited live projections, queued commands, foreground application, permissions, opt-in read-only daily timing history, Claude setup and honest real-client acceptance boundaries.

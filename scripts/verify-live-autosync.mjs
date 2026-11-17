@@ -10,22 +10,17 @@ function admin(action,value={}){return new Promise((resolve,reject)=>{const chil
 const browser=await chromium.launch(),contexts=[]
 async function pair(page,space,label){
  await page.goto('https://lifeos-pocket.pages.dev/pocket/#settings');await page.getByLabel('同步空间编号').fill(space);await page.getByLabel('本设备名称').fill(label);await page.getByRole('button',{name:'申请设备配对',exact:true}).click()
- const box=page.getByLabel('将以下信息交给已绑定的电脑或管理设备');await box.waitFor();const info=JSON.parse(await box.inputValue());await admin('pair/approve',{...info,role:'member'});await page.getByRole('button',{name:'已在电脑批准，完成绑定',exact:true}).click();await page.locator('#auto-sync').filter({hasText:'迁移校验中'}).waitFor()
- await page.locator('#auto-sync details').first().evaluate(e=>e.open=true)
+ const box=page.getByLabel('将以下信息交给已绑定的电脑或管理设备');await box.waitFor();const info=JSON.parse(await box.inputValue());await admin('pair/approve',{...info,role:'member'});await page.getByRole('button',{name:'已在电脑批准，完成绑定',exact:true}).click();await page.locator('#auto-sync').filter({hasText:'设备已连接'}).waitFor()
 }
-async function verify(page){await page.locator('#sync-source-confirm').check();const download=page.waitForEvent('download');await page.getByRole('button',{name:'下载备份并校验本机',exact:true}).click();await download;await page.locator('#auto-sync').filter({hasText:'本机清单已核验'}).waitFor()}
+async function verify(page){await page.locator('#sync-source-confirm').check();const download=page.waitForEvent('download');await page.getByRole('button',{name:'开启自动同步',exact:true}).click();await download;await page.getByRole('button',{name:'备份已保存，继续',exact:true}).click();await page.locator('#auto-sync').filter({hasText:'本机已准备好'}).waitFor()}
 async function waitFor(fn,timeout=45000){const start=Date.now();while(Date.now()-start<timeout){if(await fn())return;await new Promise(r=>setTimeout(r,500))}throw Error('Live automatic synchronization did not finish in time')}
 try{
  const {space_id}=await admin('init');await admin('archive-once')
  for(let i=0;i<2;i++){const context=await browser.newContext({acceptDownloads:true,viewport:{width:390,height:844}});contexts.push(context);await pair(await context.newPage(),space_id,'Live synthetic fixture '+i)}
  const [a,b]=contexts.map(c=>c.pages()[0])
- let ready=false
- for(let n=0;n<4&&!ready;n++){
-  await verify(a);await verify(b);await admin('archive-once');const state=await admin('status');ready=state.archive?.cursor===state.head&&state.migration_checks.filter(c=>c.head===state.head&&c.confirmed).length>=2
- }
- assert.ok(ready,'Migration gate did not converge')
- await admin('activate')
- for(const page of [a,b]){await page.getByRole('button',{name:'刷新状态',exact:true}).click();await page.locator('#auto-sync').filter({hasText:'已启用'}).waitFor()}
+ await verify(a);await verify(b)
+ await waitFor(async()=>{await admin('archive-once');return (await admin('status')).mode==='active'},90000)
+ for(const page of [a,b])await page.locator('#auto-sync').filter({hasText:'自动同步已开启'}).waitFor({timeout:45000})
  const before=await admin('status'),title='Live automatic fixture '+randomBytes(6).toString('hex')
  await a.getByRole('link',{name:'随手记',exact:true}).click();await a.getByLabel('此刻的想法').fill(title);await a.getByRole('button',{name:'保存随手记',exact:true}).click()
  await waitFor(async()=>(await admin('status')).head>before.head)

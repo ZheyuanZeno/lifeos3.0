@@ -40,7 +40,7 @@ export class SyncSpace {
  private used(){return this.ctx.storage.sql.databaseSize}
  private nonce(device:string,v:{nonce:string;time:number}){if(this.ctx.storage.sql.exec('SELECT 1 FROM nonces WHERE device=? AND nonce=?',device,v.nonce).toArray().length)throw new Fault('拒绝重放请求',409,'replay');this.ctx.storage.sql.exec('DELETE FROM nonces WHERE time<?',Date.now()-600000);this.ctx.storage.sql.exec('INSERT INTO nonces VALUES (?,?,?)',device,v.nonce,v.time)}
  private manifest(){const head=this.head(),cached=this.get('manifest_cache');if(cached?.head===head)return cached.value;const operations=this.ctx.storage.sql.exec<{id:string}>('SELECT id FROM operations ORDER BY id').toArray().map(r=>r.id),media=this.ctx.storage.sql.exec<any>('SELECT file,sha FROM media WHERE ready=1 ORDER BY file').toArray();const value={operation_count:operations.length,operation_ids_digest:hash(canonical(operations)),media_count:media.length,media_digest:hash(canonical(media))};this.put('manifest_cache',{head,value});return value}
- private status(){const head=this.head(),archive=this.get('archive'),manifest=this.manifest();return {protocol:'lifeos-sync-v1',head,mode:this.get('mode','staging'),manifest,archive,unarchived_batches:this.ctx.storage.sql.exec<{n:number}>('SELECT count(*) AS n FROM batches WHERE seq>?',archive?.cursor??0).one().n,bytes:this.used(),limit_bytes:LIMIT,devices:this.ctx.storage.sql.exec('SELECT id,label,role,kind,revoked,cursor FROM devices').toArray(),migration_checks:this.ctx.storage.sql.exec('SELECT device,head,time,confirmed FROM migration').toArray(),migration_preparations:this.ctx.storage.sql.exec("SELECT p.device,p.time,1 AS confirmed FROM migration_preparations p JOIN devices d ON d.id=p.device WHERE d.revoked=0 AND d.kind='pwa'").toArray()}}
+ private status(){const head=this.head(),archive=this.get('archive'),manifest=this.manifest();return {protocol:'lifeos-sync-v1',head,mode:this.get('mode','staging'),manifest,archive,unarchived_batches:this.ctx.storage.sql.exec<{n:number}>('SELECT count(*) AS n FROM batches WHERE seq>?',archive?.cursor??0).one().n,bytes:this.used(),limit_bytes:LIMIT,devices:this.ctx.storage.sql.exec('SELECT id,label,role,kind,revoked,cursor FROM devices').toArray(),migration_checks:this.ctx.storage.sql.exec('SELECT device,head,time,confirmed FROM migration').toArray(),migration_preparations:this.ctx.storage.sql.exec("SELECT p.device,p.time,1 AS confirmed FROM migration_preparations p JOIN devices d ON d.id=p.device WHERE d.revoked=0 AND d.kind='pwa'").toArray().map((p:any)=>({...p,auto_activate:this.get('auto_activate:'+p.device,false)}))}}
  async fetch(r:Request){return this.ctx.blockConcurrencyWhile(async()=>{try{
   const {raw,value:b}=await input(r),action=new URL(r.url).pathname.slice(1),space=hex.parse(r.headers.get('X-LifeOS-Space')),device=id.parse(r.headers.get('X-LifeOS-Device'))
   let owner=this.ctx.storage.sql.exec<any>('SELECT * FROM devices WHERE id=?',device).toArray()[0]
@@ -129,12 +129,13 @@ export class SyncSpace {
   if(action==='archive/ack'){
    const archive=this.get('archive');if(!archive||archive.device_id!==device||owner.kind!=='archive'||archive.storage_id!==b.storage_id||archive.archive_id!==b.archive_id)throw new Fault('归档身份或实际存储目录不一致',403,'archive')
    const cursor=z.number().int().min(archive.cursor).max(this.head()).parse(b.cursor),manifest=b.manifest;const entries=this.ctx.storage.sql.exec<any>('SELECT seq,kind,id FROM changes WHERE seq<=? ORDER BY seq',cursor).toArray();const proof=hash(canonical(entries.map(e=>({seq:e.seq,kind:e.kind,id:e.id,digest:e.kind==='batch'?this.ctx.storage.sql.exec<any>('SELECT digest FROM batches WHERE file_id=?',e.id).one().digest:this.ctx.storage.sql.exec<any>('SELECT sha FROM media WHERE id=?',e.id).one().sha}))))
-   if(proof!==manifest)throw new Fault('归档持久化清单与云端不一致',409,'integrity');this.put('archive',{...archive,cursor,last_success:new Date().toISOString(),manifest});return Response.json(this.get('archive'))
+   if(proof!==manifest)throw new Fault('归档持久化清单与云端不一致',409,'integrity');if(b.backup_digest!==undefined&&!hex.safeParse(b.backup_digest).success)throw new Fault('备份摘要无效',409,'integrity');this.put('archive',{...archive,cursor,last_success:new Date().toISOString(),manifest,...(b.backup_digest?{backup_head:cursor,backup_digest:b.backup_digest}:{})});return Response.json(this.get('archive'))
   }
   if(action==='migration/prepare'){
    if(owner.kind!=='pwa')throw new Fault('迁移准备需要已绑定PWA确认',403,'permission')
    if(b.source_confirmed!==true||!hex.safeParse(b.backup_digest).success)throw new Fault('请先下载迁移前备份，并确认已完成最后一次旧渠道同步',409,'migration')
    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO migration_preparations VALUES (?,?,?)',device,b.backup_digest,Date.now())
+   if(b.auto_activate===true)this.put('auto_activate:'+device,true)
    return Response.json({prepared:true,verified:false,mode:this.get('mode','staging')})
   }
   if(action==='migration/verify'){
@@ -144,6 +145,7 @@ export class SyncSpace {
   if(action==='activate'){
    const archive=this.get('archive'),head=this.head(),checks=this.ctx.storage.sql.exec<any>("SELECT m.* FROM migration m JOIN devices d ON m.device=d.id WHERE d.revoked=0 AND d.kind='pwa' AND m.head=? AND m.confirmed=1 AND m.time>?",head,Date.now()-86400000).toArray()
    if(!archive||archive.cursor!==head||!archive.manifest||checks.length<2)throw new Fault('正式切换需电脑持久归档及至少两台PWA在当前云端序号核验一致',409,'migration')
+   if(b.automatic===true){const consent=this.status().migration_preparations.filter((p:any)=>p.auto_activate===true);if(consent.length<2||archive.backup_head!==head||!hex.safeParse(archive.backup_digest).success)throw new Fault('自动开启还需两台设备明确选择开启，以及当前完整电脑备份',409,'migration')}
    this.put('mode','active');return Response.json(this.status())
   }
   throw new Fault('接口不存在',404)

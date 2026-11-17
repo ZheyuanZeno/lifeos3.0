@@ -21,7 +21,7 @@
 
 ## 整体架构
 
-新增第一阶段 AutoSync 与 Windows 永久归档：独立签名设备身份、Cloudflare Sync Hub、前台自动补传及无需浏览器的归档 Agent。现有设备仍保持旧渠道，只有完成备份、电脑归档和两台 PWA 当前清单核验后才正式切换。首次迁移、设备配对、恢复与免费额度见 [AUTOSYNC-ARCHIVE](docs/AUTOSYNC-ARCHIVE.md)；[升级前版本与回退](docs/PRE-AUTOSYNC-ROLLBACK.md)已独立保留。
+新增第一阶段 AutoSync 与 Windows 永久归档：独立签名设备身份、Cloudflare Sync Hub、前台自动补传及无需浏览器的归档 Agent。已配对的两台手机各点开启、保存备份并确认继续，补传、完整核验和电脑备份完成后自动启用，见 [三步开启说明](docs/SYNC-SETUP.md)。设备配对、恢复与免费额度见 [AUTOSYNC-ARCHIVE](docs/AUTOSYNC-ARCHIVE.md)；[升级前版本与回退](docs/PRE-AUTOSYNC-ROLLBACK.md)已独立保留。
 
 LifeOS 3.0 使用“本地先保存、按需交换数据、后台独立提醒”的结构。手机、电脑白板和通知服务职责分开，实际生活记录没有保存在 GitHub 仓库里。
 

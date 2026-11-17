@@ -46,3 +46,16 @@ it('saves a new complete backup after recovering media before marking the device
  await controller.verifyMigration(true,async(backup,stage)=>{backups.push(backup);calls.push('backup:'+stage)})
  expect(calls).toEqual(['backup:before','migration/prepare','sync','backup:verified','migration/verify']);expect(backups[0].media).toEqual([]);expect(backups[1].media).toHaveLength(1)
 })
+it('keeps a failed prepare visible after the backup and reuses that backup on retry',async()=>{
+ const {controller,transport}=await controllerFixture(),save=vi.fn(async()=>{}),sync=vi.spyOn(controller,'syncNow').mockResolvedValue()
+ const request=vi.spyOn(transport,'request').mockRejectedValueOnce(Error('连接被拒绝')).mockResolvedValue({} as any)
+ await expect(controller.verifyMigration(true,save)).rejects.toThrow('连接被拒绝')
+ expect(controller.state.migration?.stage).toBe('failed');expect(controller.state.migration?.message).toContain('连接同步中心');expect(controller.state.error).toBe('连接被拒绝');expect(sync).not.toHaveBeenCalled()
+ await controller.verifyMigration(true,save);expect(save).toHaveBeenCalledTimes(1);expect(request).toHaveBeenCalledTimes(3)
+})
+it('wizard saves one source backup, remembers intent and never redownloads on merge or retry',async()=>{
+ vi.stubGlobal('window',new EventTarget());vi.stubGlobal('document',Object.assign(new EventTarget(),{hidden:false}))
+ const {db,controller,transport}=await controllerFixture(),save=vi.fn(async()=>{}),bytes=new Uint8Array([9,8,7]),file='f'.repeat(32)+'.wav'
+ vi.spyOn(controller,'syncNow').mockImplementation(async()=>{await db.media.put({file,bytes:bytes.buffer,mime:'audio/wav',size:bytes.length,sha256:await mediaDigest(bytes),createdAt:'2026-11-17T10:00:00Z'})})
+ try{await controller.verifyMigration(true,save,true);await controller.verifyMigration(true,save,true);expect(save).toHaveBeenCalledTimes(1);expect((await db.local.get('sync-wizard/'+transport.accountId))?.value).toBe(true);expect(controller.state.migration?.stage).toBe('waiting');expect(vi.mocked(transport.request).mock.calls[0][1]).toMatchObject({auto_activate:true})}finally{controller.dispose()}
+})

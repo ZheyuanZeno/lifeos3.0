@@ -183,6 +183,8 @@ class ArchiveAgent:
                 source.backup(destination)
                 if destination.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                     raise ValueError('Archive backup integrity check failed')
+            with open(target / 'lifeos.sqlite', 'r+b') as stream:
+                os.fsync(stream.fileno())
             files = {}
             for file in (self.data / 'attachments').glob('*'):
                 if file.is_file() and app.ATTACHMENT.fullmatch(file.name):
@@ -344,13 +346,35 @@ class ArchiveAgent:
             with open(self.data / 'lifeos.sqlite', 'r+b') as stream:
                 os.fsync(stream.fileno())
             proof = sha(compact(rows).encode())
-            if self.config.get('primary', True) and (not status.get('archive') or status['archive']['cursor'] != head or status['archive'].get('manifest') != proof):
-                self.client.request('archive/ack', {'archive_id': self.identity['archive_id'], 'storage_id': self.identity['storage_id'], 'cursor': head, 'manifest': proof})
-            device_state = next((d for d in status.get('devices', []) if d['id'] == self.client.credentials['device_id']), None)
-            if not device_state or device_state.get('cursor') != head:
-                self.client.request('cursor/ack', {'cursor': head})
-            if restoring:
-                durable(restore_marker, compact({'complete': True, 'verified_head': head, 'completed_at': app.now()}).encode())
+            auto_ready = self.config.get('primary', True) and status['mode'] == 'staging' and len([p for p in status.get('migration_preparations', []) if p.get('auto_activate')]) >= 2 and len([c for c in status.get('migration_checks', []) if c.get('confirmed') and c.get('head') == head]) >= 2
+            backup_digest = None
+            if auto_ready:
+                saved_file = self.root / 'migration-complete-backup.json'
+                saved = json.loads(saved_file.read_text('utf-8')) if saved_file.exists() else {}
+                if saved.get('head') != head or saved.get('proof') != proof:
+                    full_backup = self.backup()
+                    raw = (full_backup / 'manifest.json').read_bytes()
+                    manifest = json.loads(raw)
+                    media_rows = [{'file': f, 'sha': digest} for f, digest in sorted(manifest['media'].items())]
+                    if len(media_rows) != status['manifest']['media_count'] or sha(compact(media_rows).encode()) != status['manifest']['media_digest']:
+                        raise ValueError('Full archive backup lacks historical media; automatic activation withheld')
+                    saved = {'head': head, 'proof': proof, 'digest': sha(raw), 'path': str(full_backup)}
+                    durable(saved_file, compact(saved).encode())
+                backup_digest = saved['digest']
+        # No network wait holds the desktop's cross-process writer lock.
+        if self.config.get('primary', True) and (backup_digest or not status.get('archive') or status['archive']['cursor'] != head or status['archive'].get('manifest') != proof):
+            self.client.request('archive/ack', {'archive_id': self.identity['archive_id'], 'storage_id': self.identity['storage_id'], 'cursor': head, 'manifest': proof, **({'backup_digest': backup_digest} if backup_digest else {})})
+        device_state = next((d for d in status.get('devices', []) if d['id'] == self.client.credentials['device_id']), None)
+        if not device_state or device_state.get('cursor') != head:
+            self.client.request('cursor/ack', {'cursor': head})
+        if restoring:
+            durable(restore_marker, compact({'complete': True, 'verified_head': head, 'completed_at': app.now()}).encode())
+        if auto_ready and backup_digest:
+            try:
+                self.client.request('activate', {'automatic': True})
+                status['mode'] = 'active'
+            except (ValueError, OSError):
+                pass  # A concurrent edit or transient outage will be retried next round.
         local_media = sum(1 for p in (self.data / 'attachments').glob('*') if p.is_file() and app.ATTACHMENT.fullmatch(p.name))
         durable(self.root / 'status.json', compact({'last_success': app.now(), 'head': head, 'unarchived_batches_at_checked_head': 0, 'media_integrity': 'sha256-verified-on-receipt', 'local_media_count': local_media, 'cloud_media_count': status.get('manifest', {}).get('media_count'), 'mode': status['mode'], 'primary': self.config.get('primary', True), 'error': ''}).encode())
         return head

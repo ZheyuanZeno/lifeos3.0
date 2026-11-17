@@ -1,5 +1,7 @@
 # AutoSync & Desktop Archive：第一阶段
 
+当前普通用户操作见 [开启自动同步](SYNC-SETUP.md)：两台手机各开启一次、保存备份并确认继续，后续自动补传、校验、电脑完整备份和开启。下文初始化与手动切换用于管理员和兼容旧版。
+
 真实个人空间仍不得在迁移门槛通过前切换；代码部署与个人数据迁移是两件事。升级前回退点见 [PRE-AUTOSYNC-ROLLBACK.md](PRE-AUTOSYNC-ROLLBACK.md)。最终部署与验收结果见文末交付记录。
 
 历史录音迁移卡住的问题已修复，最新流程与用户重试步骤见 [MEDIA-MIGRATION-FIX.md](MEDIA-MIGRATION-FIX.md)。迁移准备授权只允许开始补传，不等于完整校验通过。
@@ -57,8 +59,8 @@ E:/Codex/venvs/lifeos-archive/Scripts/python.exe lifeos/archive_agent.py --confi
 E:/Codex/venvs/lifeos-archive/Scripts/python.exe lifeos/archive_agent.py --config E:/Codex/archive-config/lifeos.json --once
 ~~~
 
-6. 两台 PWA 各自确认迁移来源完整，下载备份并校验当前清单。每次备份包含全部操作和媒体，不包含私钥。
-7. 等 Agent 对当前云端 head 完成归档，再由管理设备点击“正式切换”，或在 Windows 执行 `--activate`。服务器强制要求当前 archive ACK 与至少两台 PWA 当前 head/清单一致；新增数据使旧核验失效时重新核验。
+6. 两台 PWA 各点「开启自动同步」，保存本机备份后返回 LifeOS 点「备份已保存，继续」。备份包含已有操作和本机媒体，不包含私钥；不能将缺失原件误称为已备齐。之后自动补传、等待另一设备并校验。
+7. 两台均明确开启且当前完整核验一致后，Agent 完成持久归档，再创建合并后的完整电脑备份，校验并提交摘要，然后自动启用。并发更新使旧核验失效时继续重试。管理设备的「高级设置 → 正式切换」和 Windows `--activate` 保留作旧版兼容，不是正常用户的必需步骤。
 8. 通过 `scripts/install-archive-windows.ps1 -ConfigPath ...` 注册当前用户登录后隐藏自启；`-Remove` 可撤销。Ubuntu 的 systemd --user 示例见 `scripts/lifeos-archive.service.example`，普通客户端配置必须为 `primary:false`，先通过管理设备批准自己的独立身份。
 
 Windows 的 staging 配置、私人 DPAPI vault 和登录自启项已创建，不应重复执行 `--init`。电脑 Pocket 的“Windows 归档管理”显示本机空间编号，并可粘贴手机的配对 JSON、核对指纹、通过本机凭证批准。请只为自己选定的管理设备勾选管理权限。PWA 先保存迁移前备份、提供明确的旧渠道收敛与补传授权，再发送 migration/prepare；Agent 先生成电脑备份后开始贡献原件，不再等待 PWA 完整核验才上传。完整切换条件保持不变。

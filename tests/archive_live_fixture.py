@@ -69,6 +69,26 @@ with tempfile.TemporaryDirectory(prefix='lifeos-workerd-archive-', dir=os.enviro
     assert json.loads((restored.root / 'restore-replay.json').read_text())['complete'] is True
     assert client.request('status')['archive']['archive_id'] == agent.identity['archive_id']
     assert (restored_data / 'attachments' / file).read_bytes() == media
+    # Two explicit wizard choices + two current checks + a complete physical backup auto-enable.
+    second_credentials = archive.new_credentials()
+    second_credentials['space_id'] = credentials['space_id']
+    second = archive.Client(config, second_credentials)
+    next_pair, next_secret = archive.secrets.token_hex(32), archive.secrets.token_hex(32)
+    requested = second.request('pair/request', {'pair_id': next_pair, 'secret': next_secret, 'public_key': second_credentials['public_key'], 'kind': 'pwa'})
+    client.request('pair/approve', {'pair_id': next_pair, 'secret': next_secret, 'fingerprint': requested['fingerprint']})
+    second.request('pair/claim', {'pair_id': next_pair, 'secret': next_secret})
+    full_manifest = client.request('manifest')
+    verify = {'head': full_manifest['head'], 'manifest': {k: v for k, v in full_manifest.items() if k != 'head'}, 'source_confirmed': True, 'backup_digest': archive.sha(b'fixture preflight backup')}
+    for device in (pwa, second):
+        device.request('migration/prepare', {'source_confirmed': True, 'backup_digest': verify['backup_digest'], 'auto_activate': True})
+        device.request('migration/verify', verify)
+    assert client.request('status')['mode'] == 'staging'
+    restored.round()
+    enabled = client.request('status')
+    assert enabled['mode'] == 'active'
+    saved_backup = json.loads((restored.root / 'migration-complete-backup.json').read_text())
+    assert archive.sha((Path(saved_backup['path']) / 'manifest.json').read_bytes()) == enabled['archive']['backup_digest']
     print('PASS: Python P-256 interoperability, offline desktop history+orphan media upload, raw SHA archive, durable ACK, retry idempotency, SQLite+media backup')
     print('PASS: portable backup restoration, explicit single-archive rebind, forced raw/media replay before restored durable ACK')
     print('PASS: migration preparation releases dormant archive contribution without claiming verification or activation')
+    print('PASS: two opt-in devices auto-enable only after current verification, durable archive and full physical backup')

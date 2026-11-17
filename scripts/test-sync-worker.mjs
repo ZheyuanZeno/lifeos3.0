@@ -61,6 +61,7 @@ try{
  await call(owner,'archive/ack',{archive_id,storage_id,cursor:2,manifest:proof})
  await call(owner,'activate',{},409)
  await call(phone,'migration/verify',verify);await call(second,'migration/verify',verify)
+ await call(owner,'activate',{automatic:true},409)
  assert.equal((await call(owner,'activate')).mode,'active')
  await call(owner,'device/revoke',{device_id:second.id});await call(second,'status',{},401)
  const restored=await identity();await call(restored,'recover',{public_key:restored.key,recovery:'0'.repeat(64)},403);await call(restored,'recover',{public_key:restored.key,recovery});assert.equal((await call(restored,'status')).devices.find(d=>d.id===restored.id).role,'owner')
