@@ -1,4 +1,4 @@
-const actions=new Set(['create','status','pair/request','pair/approve','pair/claim','recover','recovery/rotate','device/revoke','batch/put','batch/get','changes','media/status','media/begin','media/put','media/commit','media/get','cursor/ack','manifest','archive/register','archive/rebind','archive/ack','migration/verify','activate'])
+const actions=new Set(['create','status','pair/request','pair/approve','pair/claim','recover','recovery/rotate','device/revoke','batch/put','batch/get','changes','media/status','media/begin','media/put','media/commit','media/get','cursor/ack','manifest','archive/register','archive/rebind','archive/ack','migration/prepare','migration/verify','activate'])
 export const onRequest:PagesFunction=async({request,params})=>{
  const action=String(params.path??'').replace(/,/g,'/')
  if(request.method!=='POST'||!actions.has(action))return new Response('Not found',{status:404})

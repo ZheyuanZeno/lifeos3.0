@@ -4,6 +4,7 @@ import {iso,uuid} from '../model'
 import {fromBase64,toBase64,signedHeaders,type SyncIdentity} from './identity'
 import {canonical,digest} from './protocol'
 import {SyncError,type SyncTransport,type RemotePage} from './types'
+import {recoverDesktopMedia} from '../media-bridge'
 
 export interface SyncManifest {operation_count:number;operation_ids_digest:string;media_count:number;media_digest:string}
 export interface SyncStatus {head:number;mode:'staging'|'active';manifest:SyncManifest;archive:null|{cursor:number;last_success?:string|null};unarchived_batches:number;bytes:number;limit_bytes:number;devices:{id:string;label:string;role:string;kind:string;revoked:number;cursor:number}[]}
@@ -36,7 +37,10 @@ export class CloudflareSyncTransport implements SyncTransport {
  async readFile(id:string){const row=await this.request<{data:string;digest:string}|null>('batch/get',{file_id:id});if(!row)return null;const bytes=fromBase64(row.data);if(await digest(bytes)!==row.digest)throw new SyncError('云端批次校验失败','integrity');return bytes}
  async createFile(id:string,bytes:Uint8Array,batchId:string,sha:string){await this.request('batch/put',{file_id:id,batch_id:batchId,digest:sha,data:toBase64(bytes)})}
  async downloadMedia(file:string):Promise<MediaAsset>{
-  const row=await this.request('media/status',{file});if(!row?.ready||row.size<1||row.size>MAX_MEDIA)throw new SyncError('历史媒体尚未完整到达云端','integrity')
+  const row=await this.request('media/status',{file})
+  if(!row)throw new SyncError('缺少历史附件 '+file+'：本机和同步云端尚无完整原件。请在保留原录音或附件的设备上更新 LifeOS，再执行迁移校验。电脑补传后可重试。','remote-missing')
+  if(!row.ready)throw new SyncError('历史附件 '+file+' 尚在补传，请在原设备保持 LifeOS 打开，稍后重试迁移校验。','remote-missing')
+  if(row.size<1||row.size>MAX_MEDIA)throw new SyncError('历史附件 '+file+' 大小不受支持，未跳过此文件。','integrity')
   const bytes=new Uint8Array(row.size)
   for(let part=0;part<Math.ceil(row.size/CHUNK);part++){const chunk=await this.request('media/get',{file,part});if(!chunk)throw new SyncError('媒体分片缺失','integrity');const data=fromBase64(chunk.data);if(data.length!==Math.min(CHUNK,row.size-part*CHUNK))throw new SyncError('媒体分片长度不符','integrity');bytes.set(data,part*CHUNK)}
   if(await digest(bytes)!==row.sha)throw new SyncError('媒体校验失败，未保存损坏文件','integrity')
@@ -53,6 +57,15 @@ export class CloudflareSyncTransport implements SyncTransport {
   const verified=await this.downloadMedia(asset.file);if(verified.sha256!==asset.sha256)throw new SyncError('媒体上传回读校验失败','integrity')
  }
  async syncMedia(db:PocketDatabase){
+  // Each device contributes its own originals before waiting for another device's files.
+  // Otherwise two devices holding different historical files can wait on each other forever.
+  const required=new Set<string>()
+  for(const row of await db.records.toArray())for(const a of row.attachments)required.add(a.file)
+  for(const op of await db.operations.toArray())if(Array.isArray(op.patch.attachments))for(const a of op.patch.attachments)required.add(a.file)
+  for(const file of required)if(!attachmentFile.test(file))throw new SyncError('历史附件名称无效','integrity')
+  await recoverDesktopMedia(db,[...required])
+  const confirmed=new Set((await db.remoteMedia.where('accountId').equals(this.accountId).toArray()).filter(m=>m.confirmed).map(m=>m.file))
+  for(const file of await db.media.toCollection().primaryKeys())if(!confirmed.has(file)){const asset=(await db.media.get(file))!;await this.uploadMedia(asset);await db.remoteMedia.put({key:this.accountId+'/'+file,accountId:this.accountId,file,fileId:file.replace('.','_'),sha256:asset.sha256,confirmed:true})}
   const state=await db.cloudState.get(this.accountId),until=this.roundHead??(await this.status()).head;this.roundHead=undefined;let after=Number(state?.mediaCursor??0)
   while(after<until){const page=await this.request<{items:Change[];next_after:number|null}>('changes',{after,until,kind:'media',limit:50})
    for(const item of page.items){const old=await db.media.get(item.file!);if(old&&old.sha256!==item.sha)throw new SyncError('媒体历史内容冲突','integrity');if(!old)await importMedia(await this.downloadMedia(item.file!),db);await db.remoteMedia.put({key:this.accountId+'/'+item.file,accountId:this.accountId,file:item.file!,fileId:item.id,sha256:item.sha!,confirmed:true})}
@@ -60,12 +73,7 @@ export class CloudflareSyncTransport implements SyncTransport {
   }
   await db.cloudState.put({...await db.cloudState.get(this.accountId),key:this.accountId,accountId:this.accountId,mediaCursor:String(until)})
   // Include tombstones, old operation attachments and orphan media: phase 1 never prunes history.
-  const required=new Set<string>()
-  for(const row of await db.records.toArray())for(const a of row.attachments)required.add(a.file)
-  for(const op of await db.operations.toArray())if(Array.isArray(op.patch.attachments))for(const a of op.patch.attachments)required.add(a.file)
   for(const file of required){if(!attachmentFile.test(file))throw new SyncError('历史附件名称无效','integrity');if(!await db.media.get(file))await importMedia(await this.downloadMedia(file),db)}
-  const confirmed=new Set((await db.remoteMedia.where('accountId').equals(this.accountId).toArray()).filter(m=>m.confirmed).map(m=>m.file))
-  for(const file of await db.media.toCollection().primaryKeys())if(!confirmed.has(file)){const asset=(await db.media.get(file))!;await this.uploadMedia(asset);await db.remoteMedia.put({key:this.accountId+'/'+file,accountId:this.accountId,file,fileId:file.replace('.','_'),sha256:asset.sha256,confirmed:true})}
  }
  async localManifest(db:PocketDatabase):Promise<SyncManifest>{
   const ids=(await db.operations.toArray()).map(o=>o.id).sort(),assets=await db.media.toArray()

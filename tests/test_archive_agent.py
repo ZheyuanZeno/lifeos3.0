@@ -106,6 +106,28 @@ class ArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'different Sync Space'):
             archive.ArchiveAgent({'data_dir': str(self.data)}, other)
 
+    def test_preparation_unlocks_contribution_without_pretending_verification_passed(self):
+        class Prepared:
+            credentials = {'device_id': 'archive'}
+            def request(self, action, value=None):
+                if action == 'status':
+                    return {'head': 0, 'migration_checks': [], 'migration_preparations': [{'device': 'pwa', 'confirmed': 1}]}
+                raise AssertionError('Unexpected request')
+        agent = archive.ArchiveAgent({'data_dir': str(self.data), 'source_confirmed': False}, Prepared())
+        class ReachedContribution(Exception):
+            pass
+        def stop_at_upload():
+            raise ReachedContribution()
+        agent.upload_media = stop_at_upload
+        agent.config['primary'] = False
+        with self.assertRaises(ReachedContribution):
+            agent.round()
+        marker = json.loads((agent.root / 'source-confirmed.json').read_text())
+        self.assertTrue(Path(marker['desktop_backup']).is_dir())
+        self.assertFalse(json.loads((agent.root / 'status.json').read_text())['migration_waiting'])
+        with archive.app.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM archive_receipts').fetchone()[0], 0)
+
 
 if __name__ == '__main__':
     unittest.main()

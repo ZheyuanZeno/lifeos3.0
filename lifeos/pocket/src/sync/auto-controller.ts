@@ -62,14 +62,19 @@ export class AutoSyncController {
   const identity=await newSyncIdentity(spaceId,label),transport=this.makeTransport(identity)
   await transport.request('recover',{recovery,public_key:identity.publicKey,label});await saveSyncIdentity(this.db,identity);this.transport=transport;this.state.bound=true;await this.refreshStatus()
  }
- async verifyMigration(sourceConfirmed:boolean,persistBackup:(backup:Awaited<ReturnType<typeof exportBackup>>)=>Promise<void>){
-  if(!this.transport||!sourceConfirmed)throw Error('请先备份并确认已完成最后一次旧渠道同步，包含所有历史媒体')
+ async verifyMigration(sourceConfirmed:boolean,persistBackup:(backup:Awaited<ReturnType<typeof exportBackup>>,stage?:'before'|'verified')=>Promise<void>){
+  if(!this.transport||!sourceConfirmed)throw Error('请先确认已完成最后一次旧渠道同步，并允许补传历史和媒体')
+  const before=await exportBackup(this.db),beforeDigest=await digest(new TextEncoder().encode(canonical(before)))
+  await persistBackup(before,'before')
+  await this.transport.request('migration/prepare',{source_confirmed:true,backup_digest:beforeDigest})
   await this.syncNow()
   const backup=await exportBackup(this.db),backupDigest=await digest(new TextEncoder().encode(canonical(backup))),manifest=await this.transport.localManifest(this.db),cloud=await this.transport.status()
   if(canonical(manifest)!==canonical(cloud.manifest))throw Error('本机与云端完整历史清单不一致，不能正式切换')
-  await persistBackup(backup)
-  await this.transport.request('migration/verify',{head:cloud.head,manifest,backup_digest:backupDigest,source_confirmed:true});await this.refreshStatus()
-  return {backup,backupDigest}
+  const changed=canonical({...before,exportedAt:''})!==canonical({...backup,exportedAt:''})
+  if(changed)await persistBackup(backup,'verified')
+  const verifiedDigest=changed?backupDigest:beforeDigest
+  await this.transport.request('migration/verify',{head:cloud.head,manifest,backup_digest:verifiedDigest,source_confirmed:true});await this.refreshStatus()
+  return {backup:changed?backup:before,backupDigest:verifiedDigest}
  }
  async activate(){if(!this.transport)throw Error('请先绑定');await this.transport.request('activate');await this.refreshStatus();this.schedule(0)}
  async disconnect(){

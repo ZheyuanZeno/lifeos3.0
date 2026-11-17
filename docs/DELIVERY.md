@@ -1,5 +1,12 @@
 # LifeOS 3.0 交付记录
 
+## 2026-11-17：修复历史媒体迁移互相等待
+
+修复设备先等待云端历史原件才上传自己原件，以及电脑等待PWA完整核验才开始贡献原件的循环。新增签名 migration/prepare，迁移前先下载现有备份并确认补传，电脑再备份并贡献原件；准备授权明确不等于完整核验。已删除记录与历史操作引用的本机音频/PDF也可恢复，文件缺失仍阻止切换并显示编号；不删除历史、不重置配对、不跳过媒体校验。普通请求与配对限流分离。
+
+149项TS、23项Python、本地workerd双设备分散原件/永久缺失/准备授权不放行切换通过；音频/Drive/自动同步专项12项和新增历史音频/PDF两引擎复查通过。生产HTTPS自动同步与独立SQLite归档复查通过；真实Cloudflare隔离空间验证准备授权唤醒Agent。Pages 0e0d0c69，缓存lifeos-pocket-96bc8c1e3c3cf2e9，Sync Worker 5d8edc4f-db06-4ea2-a32d-1a7d49ba577d。原MCP/通知保持，服务重启前后原六张SQLite业务表指纹相同。修复前标签pre-media-migration-fix-20261117及E盘发布/数据库/媒体备份保留。详见 [修复与重试步骤](MEDIA-MIGRATION-FIX.md)。
+
+
 ## 2026-11-17：AutoSync 与 Windows 完整归档第一阶段
 
 新增独立签名 Sync Worker、Cloudflare 传输、前台自动同步及不依赖浏览器的 Python 归档 Agent。原数据库名称、repository 事务、因果合并、多计时器、MCP、通知、Drive 手动备用和旧备份保持。全历史与媒体不裁剪，分片及批次 SHA 回读；只有电脑持久归档且两台 PWA 当前完整清单一致才允许正式切换。Windows 为已选择的主归档，Ubuntu 先作独立普通客户端。强恢复凭证、可撤销设备、明确换绑恢复、SQLite/媒体备份与共享写入锁均已实现。

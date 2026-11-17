@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix='lifeos-workerd-archive-', dir=os.enviro
     (data / 'attachments').mkdir()
     (data / 'backups').mkdir()
     credentials = archive.new_credentials()
-    config = {'data_dir': str(data), 'endpoint': endpoint, 'primary': True}
+    config = {'data_dir': str(data), 'endpoint': endpoint, 'primary': True, 'source_confirmed': False}
     client = archive.Client(config, credentials)
     client.request('create', {'bootstrap': bootstrap, 'public_key': credentials['public_key'], 'recovery_hash': archive.sha(credentials['recovery'].encode()), 'kind': 'archive'})
     agent = archive.ArchiveAgent(config, client)
@@ -28,6 +28,18 @@ with tempfile.TemporaryDirectory(prefix='lifeos-workerd-archive-', dir=os.enviro
     file = 'a' * 32 + '.wav'
     media = b'RIFF' + bytes(range(256)) * 1000
     archive.durable(data / 'attachments' / file, media)
+    assert agent.round() == 0
+    assert client.request('status')['manifest']['media_count'] == 0
+    # Preparation must release the archive contributor before a PWA can verify missing media.
+    pwa_credentials = archive.new_credentials()
+    pwa_credentials['space_id'] = credentials['space_id']
+    pwa = archive.Client(config, pwa_credentials)
+    pair_id, pair_secret = archive.secrets.token_hex(32), archive.secrets.token_hex(32)
+    pair = pwa.request('pair/request', {'pair_id': pair_id, 'secret': pair_secret, 'public_key': pwa_credentials['public_key'], 'kind': 'pwa'})
+    client.request('pair/approve', {'pair_id': pair_id, 'secret': pair_secret, 'fingerprint': pair['fingerprint']})
+    pwa.request('pair/claim', {'pair_id': pair_id, 'secret': pair_secret})
+    prepared = pwa.request('migration/prepare', {'source_confirmed': True, 'backup_digest': archive.sha(b'fixture preflight backup')})
+    assert prepared['verified'] is False
     head = agent.round()
     status = client.request('status')
     assert head > 0 and status['archive']['cursor'] == head
@@ -59,3 +71,4 @@ with tempfile.TemporaryDirectory(prefix='lifeos-workerd-archive-', dir=os.enviro
     assert (restored_data / 'attachments' / file).read_bytes() == media
     print('PASS: Python P-256 interoperability, offline desktop history+orphan media upload, raw SHA archive, durable ACK, retry idempotency, SQLite+media backup')
     print('PASS: portable backup restoration, explicit single-archive rebind, forced raw/media replay before restored durable ACK')
+    print('PASS: migration preparation releases dormant archive contribution without claiming verification or activation')

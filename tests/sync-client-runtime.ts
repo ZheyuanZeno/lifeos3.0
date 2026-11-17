@@ -31,6 +31,20 @@ export async function exercise(endpoint:string,bootstrap:string,fetcher:typeof f
   assert.deepEqual(await ta.localManifest(a),(await ta.status()).manifest)
   assert.equal(await pendingCount(a,ta.accountId),0);assert.ok(await pendingCount(a,'unrelated-drive-account')>0)
   const restored=new PocketDatabase('cf-restored-'+randomId(8));try{await restoreBackup(await exportBackup(a),restored);assert.equal(await restored.operations.count(),await a.operations.count());assert.equal((await restored.media.get(file))?.sha256,await digest(bytes))}finally{await restored.delete()}
+  const left='c'.repeat(32)+'.wav',right='d'.repeat(32)+'.wav',leftBytes=new Uint8Array([1,2,3,4]),rightBytes=new Uint8Array([5,6,7,8])
+  const split=await saveRecord({...recordDraft('module-pocket-notes','2026-11-01','note'),title:'Split historical originals',attachments:[{file:left,name:'Left original'},{file:right,name:'Right original'}]},a)
+  await saveRecord({...split,deleted:true,attachments:[]},a)
+  await restoreBackup({...await exportBackup(a),media:[]},b)
+  await a.media.put({file:left,bytes:leftBytes.buffer,mime:'audio/wav',size:leftBytes.length,sha256:await digest(leftBytes),createdAt:'2026-11-01T10:00:00Z'})
+  await b.media.put({file:right,bytes:rightBytes.buffer,mime:'audio/wav',size:rightBytes.length,sha256:await digest(rightBytes),createdAt:'2026-11-01T10:00:00Z'})
+  await assert.rejects(sync(a,ta),error=>String(error).includes(right))
+  assert.equal((await ta.request('media/status',{file:left})).ready,1,'Local originals must upload before waiting for another device')
+  await sync(b,tb);await sync(a,ta)
+  for(const database of [a,b]){assert.equal((await database.media.get(left))?.sha256,await digest(leftBytes));assert.equal((await database.media.get(right))?.sha256,await digest(rightBytes));assert.equal((await database.records.get(split.id))?.deleted,true)}
+  const missing='e'.repeat(32)+'.wav',lost=await saveRecord({...recordDraft('module-pocket-notes','2026-11-01','note'),title:'Missing historical original',attachments:[{file:missing,name:'Missing original'}]},a)
+  await saveRecord({...lost,deleted:true,attachments:[]},a)
+  const opCount=await a.operations.count();await assert.rejects(sync(a,ta),error=>String(error).includes(missing));assert.equal(await a.operations.count(),opCount);assert.equal((await a.records.get(lost.id))?.deleted,true);assert.equal((await ta.status()).mode,'staging');assert.ok(await pendingCount(a,ta.accountId)>0)
+  console.log('PASS: reciprocal tombstoned recordings contribute before waiting; permanently missing originals block migration without deleting history')
   console.log('PASS: two actual Dexie clients + real workerd, independent ACK namespaces, parallel timers, tombstone/orphan media retention, idempotency and old backup format')
  }finally{await a.delete();await b.delete()}
 }

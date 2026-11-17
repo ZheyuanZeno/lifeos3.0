@@ -2,6 +2,8 @@
 
 真实个人空间仍不得在迁移门槛通过前切换；代码部署与个人数据迁移是两件事。升级前回退点见 [PRE-AUTOSYNC-ROLLBACK.md](PRE-AUTOSYNC-ROLLBACK.md)。最终部署与验收结果见文末交付记录。
 
+历史录音迁移卡住的问题已修复，最新流程与用户重试步骤见 [MEDIA-MIGRATION-FIX.md](MEDIA-MIGRATION-FIX.md)。迁移准备授权只允许开始补传，不等于完整校验通过。
+
 ## 架构与数据职责
 
 PWA 继续使用 Vanilla TypeScript、Dexie 和原 `lifeos-pocket-v1` IndexedDB，数据库版本仍为 5。`repository.ts` 继续事务保存业务记录与因果操作，`merge.ts`、多计时器、MCP 收件与通知投影不更换。新传输实现 `SyncTransport`，操作批次沿用 protocol 1；`cf-sync-v1:<space-id>` 的确认、文件、待上传批次及游标与 Drive 的 OAuth 应用/账号命名空间完全分开。
@@ -59,7 +61,7 @@ E:/Codex/venvs/lifeos-archive/Scripts/python.exe lifeos/archive_agent.py --confi
 7. 等 Agent 对当前云端 head 完成归档，再由管理设备点击“正式切换”，或在 Windows 执行 `--activate`。服务器强制要求当前 archive ACK 与至少两台 PWA 当前 head/清单一致；新增数据使旧核验失效时重新核验。
 8. 通过 `scripts/install-archive-windows.ps1 -ConfigPath ...` 注册当前用户登录后隐藏自启；`-Remove` 可撤销。Ubuntu 的 systemd --user 示例见 `scripts/lifeos-archive.service.example`，普通客户端配置必须为 `primary:false`，先通过管理设备批准自己的独立身份。
 
-当前 Windows 已创建 staging 配置、私人 DPAPI vault 和登录自启项，Agent 正在等待迁移确认，尚未上传私人历史；不应重复执行 `--init`。电脑 Pocket 的“Windows 归档管理”显示本机空间编号，并可粘贴手机的配对 JSON、核对指纹、通过本机凭证批准。请只为自己选定的管理设备勾选管理权限。首次 PWA 完整核验提供明确的旧渠道收敛确认后，Agent 先生成完整电脑备份才开始首次上传和归档。
+Windows 的 staging 配置、私人 DPAPI vault 和登录自启项已创建，不应重复执行 `--init`。电脑 Pocket 的“Windows 归档管理”显示本机空间编号，并可粘贴手机的配对 JSON、核对指纹、通过本机凭证批准。请只为自己选定的管理设备勾选管理权限。PWA 先保存迁移前备份、提供明确的旧渠道收敛与补传授权，再发送 migration/prepare；Agent 先生成电脑备份后开始贡献原件，不再等待 PWA 完整核验才上传。完整切换条件保持不变。
 
 Ubuntu 独立客户端可用 `--pair-space <空间编号> --ordinary --data-dir <Ubuntu自己的目录> --pair-output <私人临时JSON> --config <新配置>` 申请配对，通过管理设备批准后用 `--claim` 领取身份，再安装 systemd --user 示例。不把 Windows 数据库的路径直接填进 Ubuntu 普通客户端配置。
 
@@ -88,7 +90,7 @@ R2 的[开通流程](https://developers.cloudflare.com/r2/get-started/)需要订
 |media/status、media/begin、media/put、media/commit、media/get|稳定文件 ID、可续传分片、完整 SHA 校验|
 |cursor/ack|设备的单调确认游标|
 |archive/register、archive/rebind、archive/ack|唯一主归档身份、显式恢复换绑、持久清单回执|
-|migration/verify、activate|本机备份与清单校验、双 PWA 与归档切换门槛|
+|migration/prepare、migration/verify、activate|备份后允许补传、本机完整清单校验、双 PWA 与归档切换门槛|
 
 主要文件：`workers/sync/src/index.ts` 与配置；`sync/{protocol,identity,cloudflare,auto-controller,auto-ui}.ts`；原 `sync/{engine,types}.ts`、`main.ts` 和 `media.ts`；`functions/api/sync/[[path]].ts`；`lifeos/{archive_agent,data_lock,sync_proxy}.py` 和原 `app.py`；`requirements-archive.txt`；Windows 自启脚本与 Ubuntu 服务示例；`scripts/test-sync-worker.mjs`、同步客户端/身份/归档与浏览器测试；本说明、架构、README、交付和回退文档。数据库名称、所有用户业务 ID、旧备份协议及原合并规则保持。
 

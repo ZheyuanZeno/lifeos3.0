@@ -1,6 +1,23 @@
 import type { PocketDatabase } from './database'
-import { audioMime,MAX_AUDIO_BYTES,mediaDigest,referencedAudio,importMedia } from './media'
+import { audioMime,MAX_AUDIO_BYTES,MAX_MEDIA_BYTES,mediaFile,fileMime,mediaDigest,referencedAudio,importMedia } from './media'
 import { iso } from './model'
+/** Recover originals from the desktop, including attachments of tombstones and old operations. */
+export async function recoverDesktopMedia(db:PocketDatabase,files:string[],fetcher:typeof fetch=(...args)=>fetch(...args)){
+ if(typeof location==='undefined'||!['127.0.0.1','localhost'].includes(location.hostname))return
+ for(const file of new Set(files)){
+  if(!mediaFile.test(file))throw Error('历史附件名称无效')
+  if(await db.media.where('file').equals(file).count())continue
+  const response=await fetcher('/attachments/'+file,{cache:'no-store',signal:AbortSignal.timeout(20000)})
+  if(response.status===404)continue
+  if(!response.ok)throw Error('本机历史附件暂不可读取，请保留原文件并重试')
+  const reader=response.body?.getReader();if(!reader)throw Error('本机历史附件内容为空')
+  const chunks:Uint8Array[]=[];let size=0
+  while(true){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>MAX_MEDIA_BYTES){await reader.cancel();throw Error('本机历史附件超过 32MB，不能完整迁移')}chunks.push(part.value)}
+  if(!size)throw Error('本机历史附件为空，不能完整迁移')
+  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
+  await importMedia({file,bytes:bytes.buffer,mime:fileMime(file),size,sha256:await mediaDigest(bytes),createdAt:iso()},db)
+ }
+}
 export async function uploadDesktopAudio(db:PocketDatabase,token:string){
  for(const file of referencedAudio(await db.records.toArray())){
   const asset=await db.media.get(file);if(!asset)continue

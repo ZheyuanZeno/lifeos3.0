@@ -1,5 +1,7 @@
 # Cloudflare Pages 托管
 
+2026-11-17 历史媒体迁移修复：最新 Pages `0e0d0c69`、缓存 `lifeos-pocket-96bc8c1e3c3cf2e9`，Sync Worker `5d8edc4f-db06-4ea2-a32d-1a7d49ba577d`。新增签名 `migration/prepare` 以解除补传互相等待，完整切换门槛不变。见 [MEDIA-MIGRATION-FIX.md](MEDIA-MIGRATION-FIX.md)；修复前版本保留在 `pre-media-migration-fix-20261117`。
+
 2026-11-17 AutoSync 第一阶段新增独立 `lifeos-sync` Worker，版本 `05d0b897-9e9e-4f73-a758-74f8575ae6a9`，地址 https://lifeos-sync.lifeos-pocket.workers.dev 。Pages 更新为 `760d0565`，缓存 `lifeos-pocket-0e68ebd15ee8c8ba`，同源新增 `/api/sync/*`，原 MCP / 通知保持。未开通 R2 或付费计划；真实私人空间保持 staging，须完成首次迁移校验后切换。完整数据流、配对、归档及真实测试边界见 [AUTOSYNC-ARCHIVE.md](AUTOSYNC-ARCHIVE.md)。升级前发布及数据备份见 [PRE-AUTOSYNC-ROLLBACK.md](PRE-AUTOSYNC-ROLLBACK.md)。
 
 项目：lifeos-pocket

@@ -31,7 +31,8 @@ export class SyncSpace {
   'CREATE TABLE IF NOT EXISTS operations (id TEXT PRIMARY KEY,device TEXT,sequence INTEGER,digest TEXT,UNIQUE(device,sequence))',
   'CREATE TABLE IF NOT EXISTS media (file TEXT PRIMARY KEY,id TEXT UNIQUE,sha TEXT,size INTEGER,mime TEXT,ready INTEGER DEFAULT 0,seq INTEGER)',
   'CREATE TABLE IF NOT EXISTS chunks (file TEXT,part INTEGER,body BLOB,PRIMARY KEY(file,part))',
-  'CREATE TABLE IF NOT EXISTS migration (device TEXT PRIMARY KEY,head INTEGER,manifest TEXT,backup_digest TEXT,confirmed INTEGER,time INTEGER)'
+  'CREATE TABLE IF NOT EXISTS migration (device TEXT PRIMARY KEY,head INTEGER,manifest TEXT,backup_digest TEXT,confirmed INTEGER,time INTEGER)',
+  'CREATE TABLE IF NOT EXISTS migration_preparations (device TEXT PRIMARY KEY,backup_digest TEXT,time INTEGER)'
  ])ctx.storage.sql.exec(sql)}
  private get(key:string,fallback:any=null){const row=this.ctx.storage.sql.exec<{value:string}>('SELECT value FROM meta WHERE key=?',key).toArray()[0];return row?JSON.parse(row.value):fallback}
  private put(key:string,value:any){this.ctx.storage.sql.exec('INSERT OR REPLACE INTO meta VALUES (?,?)',key,JSON.stringify(value))}
@@ -39,7 +40,7 @@ export class SyncSpace {
  private used(){return this.ctx.storage.sql.databaseSize}
  private nonce(device:string,v:{nonce:string;time:number}){if(this.ctx.storage.sql.exec('SELECT 1 FROM nonces WHERE device=? AND nonce=?',device,v.nonce).toArray().length)throw new Fault('拒绝重放请求',409,'replay');this.ctx.storage.sql.exec('DELETE FROM nonces WHERE time<?',Date.now()-600000);this.ctx.storage.sql.exec('INSERT INTO nonces VALUES (?,?,?)',device,v.nonce,v.time)}
  private manifest(){const head=this.head(),cached=this.get('manifest_cache');if(cached?.head===head)return cached.value;const operations=this.ctx.storage.sql.exec<{id:string}>('SELECT id FROM operations ORDER BY id').toArray().map(r=>r.id),media=this.ctx.storage.sql.exec<any>('SELECT file,sha FROM media WHERE ready=1 ORDER BY file').toArray();const value={operation_count:operations.length,operation_ids_digest:hash(canonical(operations)),media_count:media.length,media_digest:hash(canonical(media))};this.put('manifest_cache',{head,value});return value}
- private status(){const head=this.head(),archive=this.get('archive'),manifest=this.manifest();return {protocol:'lifeos-sync-v1',head,mode:this.get('mode','staging'),manifest,archive,unarchived_batches:this.ctx.storage.sql.exec<{n:number}>('SELECT count(*) AS n FROM batches WHERE seq>?',archive?.cursor??0).one().n,bytes:this.used(),limit_bytes:LIMIT,devices:this.ctx.storage.sql.exec('SELECT id,label,role,kind,revoked,cursor FROM devices').toArray(),migration_checks:this.ctx.storage.sql.exec('SELECT device,head,time,confirmed FROM migration').toArray()}}
+ private status(){const head=this.head(),archive=this.get('archive'),manifest=this.manifest();return {protocol:'lifeos-sync-v1',head,mode:this.get('mode','staging'),manifest,archive,unarchived_batches:this.ctx.storage.sql.exec<{n:number}>('SELECT count(*) AS n FROM batches WHERE seq>?',archive?.cursor??0).one().n,bytes:this.used(),limit_bytes:LIMIT,devices:this.ctx.storage.sql.exec('SELECT id,label,role,kind,revoked,cursor FROM devices').toArray(),migration_checks:this.ctx.storage.sql.exec('SELECT device,head,time,confirmed FROM migration').toArray(),migration_preparations:this.ctx.storage.sql.exec("SELECT p.device,p.time,1 AS confirmed FROM migration_preparations p JOIN devices d ON d.id=p.device WHERE d.revoked=0 AND d.kind='pwa'").toArray()}}
  async fetch(r:Request){return this.ctx.blockConcurrencyWhile(async()=>{try{
   const {raw,value:b}=await input(r),action=new URL(r.url).pathname.slice(1),space=hex.parse(r.headers.get('X-LifeOS-Space')),device=id.parse(r.headers.get('X-LifeOS-Device'))
   let owner=this.ctx.storage.sql.exec<any>('SELECT * FROM devices WHERE id=?',device).toArray()[0]
@@ -130,6 +131,12 @@ export class SyncSpace {
    const cursor=z.number().int().min(archive.cursor).max(this.head()).parse(b.cursor),manifest=b.manifest;const entries=this.ctx.storage.sql.exec<any>('SELECT seq,kind,id FROM changes WHERE seq<=? ORDER BY seq',cursor).toArray();const proof=hash(canonical(entries.map(e=>({seq:e.seq,kind:e.kind,id:e.id,digest:e.kind==='batch'?this.ctx.storage.sql.exec<any>('SELECT digest FROM batches WHERE file_id=?',e.id).one().digest:this.ctx.storage.sql.exec<any>('SELECT sha FROM media WHERE id=?',e.id).one().sha}))))
    if(proof!==manifest)throw new Fault('归档持久化清单与云端不一致',409,'integrity');this.put('archive',{...archive,cursor,last_success:new Date().toISOString(),manifest});return Response.json(this.get('archive'))
   }
+  if(action==='migration/prepare'){
+   if(owner.kind!=='pwa')throw new Fault('迁移准备需要已绑定PWA确认',403,'permission')
+   if(b.source_confirmed!==true||!hex.safeParse(b.backup_digest).success)throw new Fault('请先下载迁移前备份，并确认已完成最后一次旧渠道同步',409,'migration')
+   this.ctx.storage.sql.exec('INSERT OR REPLACE INTO migration_preparations VALUES (?,?,?)',device,b.backup_digest,Date.now())
+   return Response.json({prepared:true,verified:false,mode:this.get('mode','staging')})
+  }
   if(action==='migration/verify'){
    if(owner.kind!=='pwa')throw new Fault('迁移设备核验需要PWA',403);const manifest=this.manifest();if(canonical(b.manifest)!==canonical(manifest)||b.head!==this.head()||b.source_confirmed!==true||!hex.safeParse(b.backup_digest).success)throw new Fault('数据、媒体或迁移前备份尚未核验一致',409,'migration')
    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO migration VALUES (?,?,?,?,?,?)',device,b.head,canonical(manifest),b.backup_digest,1,Date.now());return Response.json({verified:true,head:b.head})
@@ -146,7 +153,7 @@ export default {async fetch(request:Request,env:Env){try{
  const path=new URL(request.url).pathname;if(path==='/')return Response.json({service:'LifeOS Sync Hub',protocol:'lifeos-sync-v1',auth:'P-256 device signatures',retention:'phase1-full-history-no-pruning'})
  if(!path.startsWith('/v1/')||request.method!=='POST')return new Response('Not found',{status:404})
  const action=path.slice(4),ip=request.headers.get('CF-Connecting-IP')??'local',limit=env.LIMITER.get(env.LIMITER.idFromName(hash(ip))),max=['create','recover','pair/request','pair/claim'].includes(action)?30:1200
- const allowed=await limit.fetch(new Request('https://limit',{method:'POST',body:JSON.stringify({key:action==='create'?'create':action.includes('recover')?'recover':'requests',max,window:action==='create'?86400000:60000})}));if(!(await allowed.json() as any).allowed)return Response.json({error:'请求过于频繁，稍后自动重试',code:'rate'},{status:429})
+ const allowed=await limit.fetch(new Request('https://limit',{method:'POST',body:JSON.stringify({key:action==='create'?'create':action==='recover'?'recover':['pair/request','pair/claim'].includes(action)?'pairing':'requests',max,window:action==='create'?86400000:60000})}));if(!(await allowed.json() as any).allowed)return Response.json({error:'请求过于频繁，稍后自动重试',code:'rate'},{status:429})
  const space=hex.parse(request.headers.get('X-LifeOS-Space'))
  if(action==='create'){const copy=request.clone(),{value}=await input(copy);if(!env.SYNC_CREATE_HASH||hash(String(value.bootstrap??''))!==env.SYNC_CREATE_HASH)return Response.json({error:'首次创建需要本机安全初始化凭证',code:'permission'},{status:403})}
  return env.SPACES.get(env.SPACES.idFromName(space)).fetch(new Request('https://space/'+action,{method:'POST',headers:request.headers,body:request.body}))

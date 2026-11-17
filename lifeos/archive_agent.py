@@ -266,13 +266,14 @@ class ArchiveAgent:
         confirmation = self.root / 'source-confirmed.json'
         if self.config.get('source_confirmed') is False and not confirmation.exists():
             state = self.client.request('status')
-            checks = [check for check in state.get('migration_checks', []) if check.get('confirmed')]
+            checks = [check for check in state.get('migration_preparations', []) + state.get('migration_checks', []) if check.get('confirmed')]
             if not checks:
                 durable(self.root / 'status.json', compact({'migration_waiting': True, 'error': '', 'checked_at': app.now()}).encode())
                 return state['head']
-            # A PWA explicitly confirmed final legacy convergence and downloaded a full backup.
+            # Source/backup consent starts contribution; it is not a complete-data verification.
             backup = self.backup()
             durable(confirmation, compact({'confirmed_at': app.now(), 'checks': checks, 'desktop_backup': str(backup)}).encode())
+            durable(self.root / 'status.json', compact({'migration_waiting': False, 'status': 'contributing', 'started_at': app.now(), 'error': ''}).encode())
         if self.config.get('primary', True) and not self.registered:
             self.client.request('archive/register', {k: self.identity[k] for k in ('archive_id', 'storage_id', 'primary_os')})
             self.registered = True

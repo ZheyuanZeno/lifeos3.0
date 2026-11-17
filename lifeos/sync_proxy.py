@@ -6,7 +6,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener
 from notification_proxy import NoRedirect
 
-ACTIONS = {'create', 'status', 'pair/request', 'pair/approve', 'pair/claim', 'recover', 'recovery/rotate', 'device/revoke', 'batch/put', 'batch/get', 'changes', 'media/status', 'media/begin', 'media/put', 'media/commit', 'media/get', 'cursor/ack', 'manifest', 'archive/register', 'archive/rebind', 'archive/ack', 'migration/verify', 'activate'}
+ACTIONS = {'create', 'status', 'pair/request', 'pair/approve', 'pair/claim', 'recover', 'recovery/rotate', 'device/revoke', 'batch/put', 'batch/get', 'changes', 'media/status', 'media/begin', 'media/put', 'media/commit', 'media/get', 'cursor/ack', 'manifest', 'archive/register', 'archive/rebind', 'archive/ack', 'migration/prepare', 'migration/verify', 'activate'}
 
 
 def relay(action, incoming, raw):
