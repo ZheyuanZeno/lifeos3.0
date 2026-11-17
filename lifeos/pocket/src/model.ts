@@ -33,6 +33,7 @@ export function validateRow(entity:Entity, value:unknown):void {
     if(Object.entries(r.properties).some(([k,v])=>!safeId.test(k)||!text(v,10000)))throw Error('自定义属性格式无效')
     for(const k of ['time_label','currency','source_id'])if(!text(r[k]))throw Error('记录文字无效')
     if(r.amount!==null&&(typeof r.amount!=='string'||!/^\d{1,12}(?:\.\d{1,2})?$/.test(r.amount)))throw Error('金额格式无效')
+    if(r.type==='expense'&&r.amount!==null&&!(r.currency as string).trim())throw Error('填写金额时也请填写币种')
     if((r.attachments as unknown[]).some(a=>!a||typeof a!=='object'||!text((a as {name:unknown}).name,300)||!/^[a-f0-9]{32}\.(?:png|jpg|jpeg|webp|gif|pdf|txt|m4a|mp4|webm|ogg|wav)$/.test(String((a as {file:unknown}).file))))throw Error('附件索引无效')
     for(const k of ['planned_start','planned_end'])if((r.properties as Record<string,string>)[k]&&!instant((r.properties as Record<string,string>)[k]))throw Error('计划时间无效')
     const props=r.properties as Record<string,string>

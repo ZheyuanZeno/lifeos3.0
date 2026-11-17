@@ -4,6 +4,8 @@
 
 手机入口：https://lifeos-pocket.pages.dev/pocket/#settings 。这是独立 MCP Worker，不是通知 Worker。聊天模型理解文字和图片；LifeOS 接收结构化参数，不接收图片、不调用视觉模型或付费推理 API，不接入 Canvas、日历、邮箱或其他第三方数据源。
 
+> 如需全部内容、想法/历史新增编辑和录音原文件，请使用新增的 [完整业务访问](FULL-AI-ACCESS.md)。本页分项权限继续兼容；完整模式只需额外一次 lifeos:full 授权。
+
 ## 首次连接
 
 1. 打开 LifeOS 设置，连接自己的 Google Drive。这里只验证账号；不会自动执行 Drive 业务同步。
@@ -29,6 +31,8 @@
 
 ## 工具和协议
 
+下表为原12项工具；完整访问另增加18项，合计30项，见 [完整工具清单](FULL-AI-ACCESS.md)。
+
 |工具|用途|
 |---|---|
 |lifeos_get_status|当前日期/时区、授权范围、数据新鲜度、待处理数|
@@ -40,7 +44,7 @@
 |lifeos_create_note / lifeos_update_note|新增/带版本修改笔记|
 |lifeos_get_command_status|执行状态、各设备回执及提醒后台状态|
 
-所有参数采用严格 Zod Schema，经官方 MCP SDK 发布 JSON Schema。拒绝未知字段、任意 SQL/JS、删除、原始图片、无效日期/时区和缺少版本的修改。查询分页默认 30、最多 100；批量最多 50 项，超过 10 项需在本机审核。修改和完成始终需本机明确审核；只有已授权的普通新增自动应用。
+所有参数采用严格 Zod Schema，经官方 MCP SDK 发布 JSON Schema。拒绝未知字段、任意 SQL/JS、永久删除、原始图片、无效日期/时区和缺少版本的修改。查询分页默认 30、最多 100；批量最多 50 项，超过 10 项需在本机审核。修改和完成始终需本机明确审核；只有已授权的普通新增自动应用。
 
 ```json
 {

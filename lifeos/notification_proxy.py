@@ -15,7 +15,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def relay(method, route, authorization, raw=None, native=False):
-    methods = {key: {"POST"} for key in ("enroll", "pair", "revoke", "projection", "pending", "ack")} if native else METHODS
+    methods = {key: {"POST"} for key in ("enroll", "pair", "revoke", "projection", "pending", "ack", "business", "media")} if native else METHODS
     if method not in methods.get(route, set()):
         return {'error': '未找到通知接口'}, 404
     if len(authorization) > 4096 or raw is not None and len(raw) > LIMIT:

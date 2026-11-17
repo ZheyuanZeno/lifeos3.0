@@ -149,3 +149,7 @@ Google Drive 仍手动，通知 Worker 独立，原数据库名/表/备份不改
 ## 当日记录只读投影
 
 新增 lifeos:daily 独立权限及 lifeos_list_daily_records 工具。Pocket按既有session规则从已结束有效段构建指定日期范围投影，不改变sessions表、业务保存、因果日志或备份格式。每段/日以会话ID+日期去重，整段版本冲突不以更新时间覆盖，冲突合计明确不完整。跨日分摊沿用录制时区dayRange，暂停扣除、多计时器分别累计，与当日记录UI保持。默认不共享历史；仅用户主动开放后上传计时及备注，不上传暂停明细、媒体或原始日志。
+
+## 完整业务访问
+
+独立lifeos:full显式授权后，前台发布modules/records/routines/completions/sessions全部日期的业务副本，分代分批校验后切换，失败保留上一代。云端仍不是主库，写操作排队为lifeos-native-v2，PWA经严格Schema和版本核对后调用repository事务与正常因果日志；修改/删除/计时控制本机审核，删除可恢复。附件按当前业务引用和账号隔离、分片补传、SHA-256确认后发布，以MCP资源/音频/分片读取，不生成公开链接。旧分项工具和AI-v1/备份/手动Drive/通知机制继续。细节、容量与真机验收见 [FULL-AI-ACCESS.md](FULL-AI-ACCESS.md)。

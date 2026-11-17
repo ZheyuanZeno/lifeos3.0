@@ -3,6 +3,7 @@
 > Offline-first personal life management: Python/SQLite desktop whiteboard, TypeScript/Dexie Pocket PWA, manual Google Drive synchronization, and Cloudflare Web Push reminders. Product version 3.0.0; latest documentation is on main.
 
 ## Documentation
+- [Full business AI access](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/FULL-AI-ACCESS.md): opt-in all-date content CRUD, ideas, routines, history, timers and original recording bytes; queue application, version checks and client acceptance limits.
 - [Native Remote MCP](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/REMOTE-MCP.md): OAuth connector, limited live projections, queued commands, foreground application, permissions, opt-in read-only daily timing history, Claude setup and honest real-client acceptance boundaries.
 - [AI Docs Bridge](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/docs/AI-BRIDGE.md): private Inbox/Context, command protocol, manual review, OAuth setup and a reusable ChatGPT prompt; real-account acceptance is separate from mocks.
 - [README](https://raw.githubusercontent.com/ZheyuanZeno/lifeos3.0/main/README.md): project overview, system diagram, implementation summary and commands.

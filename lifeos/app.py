@@ -486,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply({'error': '不允许跨站访问通知'}, 403)
         native = urlparse(self.path).path.startswith('/api/mcp-device/')
         route = urlparse(self.path).path.removeprefix('/api/mcp-device/' if native else '/api/notify/')
-        if self.command not in ({key: {'POST'} for key in ('enroll', 'pair', 'revoke', 'projection', 'pending', 'ack')} if native else notification_proxy.METHODS).get(route, set()):
+        if self.command not in ({key: {'POST'} for key in ('enroll', 'pair', 'revoke', 'projection', 'pending', 'ack', 'business', 'media')} if native else notification_proxy.METHODS).get(route, set()):
             return self.reply({'error': '未找到通知接口'}, 404)
         raw = None
         if self.command != 'GET':

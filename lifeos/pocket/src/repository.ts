@@ -1,5 +1,5 @@
 import { db as defaultDB, type PocketDatabase } from './database'
-import { entities,iso,uuid,zone,validateRow,validateOperation, type Entity,type Rows,type Identity,type Operation,type Routine,type LifeRecord } from './model'
+import { entities,iso,uuid,zone,validateRow,validateOperation, type Entity,type Rows,type Identity,type Operation,type Routine,type LifeRecord,type Module,type Session } from './model'
 import { materialize } from './merge'
 import { dailyPresets } from './defaults'
 import { serializeMedia,deserializeMedia,importMedia,type MediaAsset } from './media'
@@ -27,7 +27,7 @@ export async function putRow<E extends Entity>(entity:E,row:Rows[E],database:Poc
   return row
 }
 export function transaction<T>(database:PocketDatabase,fn:()=>Promise<T>){return database.transaction('rw',database.tables,fn)}
-export async function saveRoutine(input:Omit<Routine,'id'|'created_at'|'updated_at'> & {id?:string},database=defaultDB){return transaction(database,async()=>{const old=input.id?await database.routines.get(input.id):undefined;const now=iso();return putRow('routines',{...input,id:old?.id??uuid(),created_at:old?.created_at??now,updated_at:now},database)})}
+export async function saveRoutine(input:Omit<Routine,'id'|'created_at'|'updated_at'> & {id?:string},database=defaultDB,createId?:string){return transaction(database,async()=>{const old=input.id?await database.routines.get(input.id):undefined;if(createId&&await database.routines.get(createId))throw Error('固定项目编号已存在');const now=iso();return putRow('routines',{...input,id:old?.id??createId??uuid(),created_at:old?.created_at??now,updated_at:now},database)})}
 export async function reorderRoutines(ids:string[],database=defaultDB){return transaction(database,async()=>{
   const all=(await database.routines.toArray()).filter(r=>!r.archived&&!r.deleted).sort((a,b)=>a.order-b.order||(a.id<b.id?-1:a.id>b.id?1:0)),selected=new Set(ids)
   if(selected.size!==ids.length||ids.some(id=>!all.some(r=>r.id===id)))throw Error('日程项目已变化，请重试排序')
@@ -67,14 +67,14 @@ export async function initialize(database=defaultDB){await transaction(database,
     await database.local.put({key:'dailyPresetsV1',value:true})
   }
 })}
-export async function startSession(subjectKind:'routine'|'record',subjectId:string,at=Date.now(),database=defaultDB){return transaction(database,async()=>{
+export async function startSession(subjectKind:'routine'|'record',subjectId:string,at=Date.now(),database=defaultDB,createId?:string,sourceDeviceId?:string){return transaction(database,async()=>{
   const subject=subjectKind==='routine'?await database.routines.get(subjectId):await database.records.get(subjectId)
   if(!subject||('archived' in subject&&subject.archived)||('deleted' in subject&&subject.deleted))throw Error('找不到可计时事项')
   if(subjectKind==='record'&&('type' in subject&&(subject.type!=='task'||subject.status==='done')))throw Error('请先重新打开已完成的计划')
   const active=openSessions(await database.sessions.toArray())
   const matching=active.find(s=>s.subjectId===subjectId&&s.subjectKind===subjectKind);if(matching)return matching
   const now=new Date(at).toISOString(),owner=await identity(database)
-  const row={id:uuid(),subjectId,subjectKind,title:subject.title,startedAt:now,endedAt:null,timeZone:zone(),deviceId:owner.id,created_at:now,updated_at:now}
+  const row={id:createId??uuid(),subjectId,subjectKind,title:subject.title,startedAt:now,endedAt:null,timeZone:zone(),deviceId:sourceDeviceId??owner.id,created_at:now,updated_at:now}
   await putRow('sessions',row,database);await database.local.put({key:'activeSession',value:row.id});return row
 })}
 async function closeSession(id:string,at:number,database:PocketDatabase){
@@ -149,3 +149,20 @@ export async function restoreBackup(value:unknown,database=defaultDB){
 }
 function sort(value:unknown):unknown{if(Array.isArray(value))return value.map(sort);if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,v])=>[k,sort(v)]));return value}
 export async function getIdentity(database=defaultDB){return transaction(database,()=>identity(database))}
+
+// Controlled business entries used by native AI; all mutations retain the normal causal log.
+export async function saveModule(row:Module,database=defaultDB){return transaction(database,()=>putRow('modules',row,database))}
+export async function saveHistoricalSession(row:Session,database=defaultDB){return transaction(database,async()=>{
+ const old=await database.sessions.get(row.id)
+ if(old&&!old.endedAt)throw Error('正在计时的会话请使用计时控制工具')
+ if(!row.endedAt)throw Error('补录历史必须有结束时间')
+ const subject=row.subjectKind==='routine'?await database.routines.get(row.subjectId):await database.records.get(row.subjectId)
+ if(!subject||row.subjectKind==='record'&&'type' in subject&&subject.type!=='task')throw Error('历史计时的项目不存在或不是计划')
+ validateRow('sessions',row)
+ return putRow('sessions',{...row,created_at:old?.created_at??row.created_at,updated_at:iso(),...(sessionElapsed(row)<=MIN_SESSION_MS?{deleted:true}:{})},database)
+})}
+export async function setRecordDeleted(id:string,deleted:boolean,database=defaultDB){return transaction(database,async()=>{
+ const row=await database.records.get(id);if(!row)throw Error('找不到记录')
+ if(deleted)for(const s of openSessions(await database.sessions.toArray()).filter(s=>s.subjectKind==='record'&&s.subjectId===id))await endSession(s.id,Date.now(),database)
+ return saveRecord({...row,deleted},database)
+})}
